@@ -31,7 +31,7 @@ CATEGORY_ALIASES = {
 
 
 def normalize_label(label: str) -> str | None:
-    """Normalize a raw label string to one of the 6 canonical categories."""
+    """Normalisiere einen rohen Label-String zu einer der 6 kanonischen Kategorien."""
     label = label.strip().lower()
     return CATEGORY_ALIASES.get(label)
 
@@ -53,13 +53,9 @@ def save_jsonl(data: list[dict], path: str | Path) -> None:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def stratified_split(
-    data: list[dict],
-    label_key: str = "label",
-    ratios: tuple[float, float, float] = (0.8, 0.1, 0.1),
-    seed: int = 42,
-) -> tuple[list[dict], list[dict], list[dict]]:
-    """Stratified split preserving label distribution."""
+def stratified_split(data: list[dict], label_key: str = "label", ratios: tuple[float, float, float] = (0.8, 0.1, 0.1), 
+                     seed: int = 42) -> tuple[list[dict], list[dict], list[dict]]:
+    """Stratifizierte Aufteilung, die die Label-Verteilung beibehält."""
     assert abs(sum(ratios) - 1.0) < 1e-6, "Ratios must sum to 1."
     random.seed(seed)
 
@@ -84,8 +80,7 @@ def stratified_split(
 
 
 def normalize_message(msg: str) -> str:
-    """Strip conventional commit prefix and normalize for deduplication."""
+    """Entferne das Conventional Commit Präfix und normalisiere zur Deduplizierung."""
     msg = msg.strip()
-    # Remove conventional commit prefix like "feat: ", "fix(scope): "
     msg = re.sub(r"^[a-z]+(\([^)]+\))?!?:\s*", "", msg, flags=re.IGNORECASE)
     return msg.lower().strip()

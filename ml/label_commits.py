@@ -1,24 +1,23 @@
-"""
-label_commits.py — Phase 1 of the NLP pipeline.
-
-Fetches commits from diverse GitHub repositories and labels each commit
-with one of 6 categories using GPT-4o-mini. Saves results as JSONL for
-use as training data in train_bert.py.
-
-Usage:
-    python ml/label_commits.py [--token GITHUB_TOKEN] [--target 10000]
-"""
-
 import argparse
 import json
 import os
 import sys
 import time
 from pathlib import Path
-
 from dotenv import load_dotenv
 from github import Github, GithubException
 from openai import OpenAI
+
+"""
+Phase 1 der NLP-Pipeline.
+
+Ruft Commits aus vielen GitHub-Repositories ab und klassifiziert jeden Commit
+mit einer von 6 Kategorien mittels GPT-4o-mini. Speichert Ergebnisse als JSONL
+für die Verwendung als Trainingsdaten in train_bert.py.
+
+Verwendung:
+    python ml/label_commits.py [--token GITHUB_TOKEN] [--target 10000]
+"""
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,31 +25,57 @@ from ml.utils import CATEGORIES, normalize_label, normalize_message, save_jsonl
 
 load_dotenv()
 
-# ─── Configuration ────────────────────────────────────────────────────────────
+# ─── Konfiguration ────────────────────────────────────────────────────────────
 
 TARGET_REPOS = [
-    "microsoft/vscode",
-    "pytorch/pytorch",
-    "django/django",
-    "facebook/react",
-    "kubernetes/kubernetes",
-    "rust-lang/rust",
-    "golang/go",
-    "tensorflow/tensorflow",
-    "rails/rails",
-    "laravel/laravel",
-    "vuejs/vue",
-    "angular/angular",
-    "expressjs/express",
-    "fastapi/fastapi",
-    "scikit-learn/scikit-learn",
-    "huggingface/transformers",
-    "numpy/numpy",
-    "pandas-dev/pandas",
-    "home-assistant/core",
-    "grafana/grafana",
+    # Python / Backend
+    "pallets/flask", # https://github.com/pallets/flask
+    "django/django", # https://github.com/django/django
+    "psf/requests", # https://github.com/psf/requests
+    "fastapi/fastapi", # https://github.com/fastapi/fastapi
+    "celery/celery", # https://github.com/celery/celery
+
+    # Data Science / Machine Learning
+    "numpy/numpy", # https://github.com/numpy/numpy
+    "pandas-dev/pandas", # https://github.com/pandas-dev/pandas
+    "scikit-learn/scikit-learn", # https://github.com/scikit-learn/scikit-learn
+    "tensorflow/tensorflow", # https://github.com/tensorflow/tensorflow
+    "pytorch/pytorch", # https://github.com/pytorch/pytorch
+    "huggingface/transformers", # https://github.com/huggingface/transformers
+
+    # DevOps / Infrastructure
+    "docker/docker-ce", # https://github.com/docker/docker-ce
+    "kubernetes/kubernetes", # https://github.com/kubernetes/kubernetes
+    "ansible/ansible", # https://github.com/ansible/ansible
+    "hashicorp/terraform", # https://github.com/hashicorp/terraform
+    "prometheus/prometheus", # https://github.com/prometheus/prometheus
+
+    # Frontend / Web
+    "facebook/react", # https://github.com/facebook/react
+    "vuejs/vue", # https://github.com/vuejs/vue
+    "angular/angular", # https://github.com/angular/angular
+    "vercel/next.js", # https://github.com/vercel/next.js
+
+    # Programming Languages / Compilers
+    "rust-lang/rust", # https://github.com/rust-lang/rust
+    "golang/go", # https://github.com/golang/go
+
+    # CLI / Developer Tools
+    "sharkdp/bat", # https://github.com/sharkdp/bat
+    "sharkdp/fd", # https://github.com/sharkdp/fd
+    "BurntSushi/ripgrep", # https://github.com/BurntSushi/ripgrep
+    "cli/cli", # https://github.com/cli/cli
+
+    # Large systems
+    "torvalds/linux", # https://github.com/torvalds/linux
+    "freebsd/freebsd-src", # https://github.com/freebsd/freebsd-src
+
+    # Misc large projects
+    "home-assistant/core", # https://github.com/home-assistant/core
+    "neovim/neovim", # https://github.com/neovim/neovim
 ]
 
+# Größe der Batch für die parallele Verarbeitung durch GPT
 BATCH_SIZE = 20
 OUTPUT_PATH = Path("data/labeled/commits_labeled.jsonl")
 
@@ -70,15 +95,16 @@ Rules:
 """
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+# ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
 
 def _is_merge_commit(msg: str) -> bool:
+    """Prüfe, ob eine Nachricht ein Merge-Commit ist."""
     first = msg.splitlines()[0].strip()
     return first.lower().startswith("merge")
 
 
 def fetch_repo_commits(repo_name: str, g: Github, limit: int) -> list[dict]:
-    """Fetch up to `limit` non-merge commits from a repo."""
+    """Rufe bis zu `limit` nicht-Merge Commits aus einem Repo ab."""
     try:
         repo = g.get_repo(repo_name)
         commits = []
@@ -102,7 +128,7 @@ def fetch_repo_commits(repo_name: str, g: Github, limit: int) -> list[dict]:
 
 
 def label_batch(messages: list[str], client: OpenAI) -> list[str | None]:
-    """Call GPT-4o-mini to label a batch of commit messages."""
+    """Rufe GPT-4o-mini auf, um einen Batch von Commit-Nachrichten zu klassifizieren."""
     messages_json = json.dumps(messages, ensure_ascii=False)
     user_prompt = f"Classify these {len(messages)} commit messages:\n{messages_json}"
 
@@ -148,12 +174,12 @@ def main():
     print(f"Target: {args.target} commits | ~{per_repo} per repo | {len(TARGET_REPOS)} repos")
     print()
 
-    # ── Step 1: Fetch raw commits ──────────────────────────────────────────────
+    # ── Schritt 1: Rufe rohe Commits ab ───────────────────────────────────────────
     all_commits: list[dict] = []
     seen_normalized: set[str] = set()
 
     for repo_name in TARGET_REPOS:
-        raw = fetch_repo_commits(repo_name, g, per_repo * 2)  # fetch extra for dedup
+        raw = fetch_repo_commits(repo_name, g, per_repo * 2)  # Rufe Extra-Commits für deduplizierung
         for c in raw:
             norm = normalize_message(c["message"])
             if norm not in seen_normalized:
@@ -162,7 +188,7 @@ def main():
 
     print(f"\nTotal unique commits after dedup: {len(all_commits)}")
 
-    # ── Step 2: Label in batches ───────────────────────────────────────────────
+# ── Schritt 2: Klassifiziere in Batches ───────────────────────────────────────
     labeled: list[dict] = []
     failed = 0
     messages = [c["message"] for c in all_commits]
@@ -188,10 +214,10 @@ def main():
         if (i // BATCH_SIZE) % 10 == 0:
             print(f"  Progress: {len(labeled)} labeled, {failed} failed (batch {i // BATCH_SIZE + 1})")
 
-        # Small sleep to respect rate limits
+        # Kurze Pause zur einhaltung der API-Limits
         time.sleep(0.1)
 
-    # ── Step 3: Save and report ────────────────────────────────────────────────
+# ── Schritt 3: Speichere und berichte ──────────────────────────────────────────
     save_jsonl(labeled, args.output)
     print(f"\nSaved {len(labeled)} labeled commits to {args.output}")
     print(f"Failed/skipped: {failed}")

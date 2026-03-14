@@ -1,138 +1,575 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Smart Changelog Generator</title>
-  <link rel="stylesheet" href="/static/style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Smart Changelog Generator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- marked.js: konvertiert Markdown-Text in HTML für die Preview-Ansicht -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+
+    <!-- Tailwind-Konfiguration: Dark Mode, Primärfarbe und Schriftart -->
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: { "primary": "#3caff6", "background-dark": "#101b22" },
+                    fontFamily: { "display": ["Inter"] },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .spin {
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* SPA page fade */
+        #page-content {
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+
+        #page-content.leaving {
+            opacity: 0;
+            transform: translateY(6px);
+            pointer-events: none;
+        }
+
+        #page-content.entering {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+
+        /* Markdown */
+        .markdown-body h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: .5rem;
+            border-bottom: 1px solid #334155;
+            padding-bottom: .5rem;
+            color: #f1f5f9;
+        }
+
+        .markdown-body h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #3caff6;
+            margin-top: 1.4rem;
+            margin-bottom: .4rem;
+        }
+
+        .markdown-body h3 {
+            font-weight: 700;
+            margin-top: .8rem;
+            margin-bottom: .3rem;
+            color: #e2e8f0;
+        }
+
+        .markdown-body ul {
+            list-style: disc;
+            padding-left: 1.25rem;
+            margin-top: .4rem;
+        }
+
+        .markdown-body li {
+            margin-bottom: .3rem;
+            color: #cbd5e1;
+            font-size: .875rem;
+            line-height: 1.6;
+        }
+
+        .markdown-body code {
+            background: #1e293b;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: .85em;
+            font-family: monospace;
+            color: #7dd3fc;
+        }
+
+        .markdown-body hr {
+            border-color: #334155;
+            margin: 1.2rem 0;
+        }
+
+        .markdown-body strong {
+            color: #f1f5f9;
+        }
+
+        .markdown-body a {
+            color: #3caff6;
+            text-decoration: none;
+        }
+
+        .markdown-body a:hover {
+            text-decoration: underline;
+        }
+
+        .markdown-body p {
+            color: #94a3b8;
+            font-size: .875rem;
+            margin: .4rem 0;
+        }
+
+        /* Scrollbar */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Bar chart animation */
+        .bar-fill {
+            transition: width 900ms cubic-bezier(.4, 0, .2, 1);
+        }
+    </style>
 </head>
-<body>
-  <header>
-    <div class="header-inner">
-      <span class="logo"> Smart Changelog Generator</span>
-      <span class="tagline">NLP-powered changelogs from GitHub commits</span>
+
+<body class="bg-background-dark text-slate-100 min-h-screen flex flex-col">
+
+    <!-- NAVBAR -->
+    <nav class="border-b border-slate-800 bg-slate-900/50 sticky top-0 z-50 flex-shrink-0">
+        <div class="px-6 h-14 flex items-center gap-3">
+            <div
+                class="size-8 bg-primary rounded-lg flex items-center justify-center text-background-dark flex-shrink-0">
+                <span class="material-symbols-outlined text-lg font-bold">auto_awesome</span>
+            </div>
+            <div class="flex flex-col justify-center">
+                <span class="font-bold text-white text-base tracking-tight leading-tight">Smart Changelog</span>
+                <span class="text-xs text-slate-500 leading-tight">NLP-powered changelogs from GitHub commits</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- PAGE CONTENT | Wird beim Start von app.js befüllt -->
+    <div id="page-content" class="flex-1 flex overflow-hidden" style="height:calc(100vh - 3.5rem)">
+        <!-- injected by navigateTo() -->
     </div>
-  </header>
 
-  <main>
-    <!-- ── Form Card ───────────────────────────────────────────────────── -->
-    <section class="card" id="form-card">
-      <h2>Generate Changelog</h2>
+    <!-- PAGE TEMPLATES -->
 
-      <div class="form-group">
-        <label for="repo-url">GitHub Repository URL</label>
-        <input
-          type="text"
-          id="repo-url"
-          placeholder="https://github.com/owner/repository"
-          autocomplete="off"
-          spellcheck="false"
-        />
-      </div>
+    <template id="tpl-changelog">
+        <!-- Linke Spalte: Konfiguration -->
+        <aside
+            class="w-80 flex-shrink-0 border-r border-slate-800 bg-slate-900/50 flex flex-col overflow-y-auto custom-scroll">
+            <div class="p-5 flex flex-col gap-5">
+                <div>
+                    <h3
+                        class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm">settings_input_component</span>Configuration
+                    </h3>
 
-      <div class="form-group">
-        <label for="github-token">GitHub Token <span class="optional">(optional — required for private repos)</span></label>
-        <input
-          type="password"
-          id="github-token"
-          placeholder="ghp_xxxxxxxxxxxx"
-          autocomplete="off"
-        />
-      </div>
+                    <!-- Repo URL -->
+                    <div class="flex flex-col gap-1.5 mb-4">
+                        <label class="text-xs font-semibold text-slate-400">GitHub Repository URL</label>
+                        <div class="relative">
+                            <input id="repo-url"
+                                class="w-full rounded-lg bg-slate-800 border border-slate-700 text-white focus:ring-1 focus:ring-primary focus:border-primary transition-all px-3 py-2.5 text-sm pr-8"
+                                placeholder="https://github.com/owner/repo" type="text" autocomplete="off"
+                                spellcheck="false" oninput="validateRepoUrl(this)" />
+                            <span id="url-status"
+                                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold pointer-events-none"></span>
+                        </div>
+                        <p id="url-hint" class="hidden text-xs text-red-400 leading-tight">Valid format:
+                            https://github.com/owner/repo</p>
+                    </div>
 
-      <!-- ── Mode toggle ────────────────────────────────────────────── -->
-      <div class="form-group">
-        <label>Commit Selection</label>
-        <div class="radio-group">
-          <label class="radio-label">
-            <input type="radio" name="mode" value="date" id="mode-date" checked />
-            Date Range
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="mode" value="n" id="mode-n" />
-            Last N Commits
-          </label>
+                    <!-- Token -->
+                    <div class="flex flex-col gap-1.5 mb-4">
+                        <label class="text-xs font-semibold text-slate-400">GitHub Token <span
+                                class="font-normal text-slate-600 ml-1">optional</span></label>
+                        <input id="github-token"
+                            class="w-full rounded-lg bg-slate-800 border border-slate-700 text-white focus:ring-1 focus:ring-primary focus:border-primary transition-all px-3 py-2.5 text-sm"
+                            placeholder="ghp_xxxxxxxxxxxx" type="password" autocomplete="off" />
+                    </div>
+
+                    <!-- Mode -->
+                    <div class="mb-4">
+                        <label class="text-xs font-semibold text-slate-400 block mb-2">Mode</label>
+                        <div class="grid grid-cols-2 gap-1 bg-slate-800 p-1 rounded-lg">
+                            <button id="btn-mode-n" onclick="setMode('n')"
+                                class="bg-slate-700 text-primary py-2 px-2 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
+                                <span class="material-symbols-outlined text-xs">history</span>Last N
+                            </button>
+                            <button id="btn-mode-date" onclick="setMode('date')"
+                                class="text-slate-400 py-2 px-2 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-slate-700/50 transition-colors">
+                                <span class="material-symbols-outlined text-xs">calendar_month</span>Date Range
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- N Commits -->
+                    <div id="n-commits-input" class="flex flex-col gap-1.5 mb-4">
+                        <label class="text-xs font-semibold text-slate-400">Number of Commits</label>
+                        <input id="last-n"
+                            class="w-full rounded-lg bg-slate-800 border border-slate-700 text-white focus:ring-1 focus:ring-primary focus:border-primary transition-all px-3 py-2.5 text-sm"
+                            type="number" value="25" min="1" max="500" />
+                    </div>
+
+                    <!-- Date Range -->
+                    <div id="date-range-inputs" class="hidden mb-4">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-semibold text-slate-400">From</label>
+                                <input id="date-from"
+                                    class="w-full rounded-lg bg-slate-800 border border-slate-700 text-white focus:ring-1 focus:ring-primary focus:border-primary transition-all px-3 py-2.5 text-sm"
+                                    type="date" />
+                            </div>
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-semibold text-slate-400">To</label>
+                                <input id="date-to"
+                                    class="w-full rounded-lg bg-slate-800 border border-slate-700 text-white focus:ring-1 focus:ring-primary focus:border-primary transition-all px-3 py-2.5 text-sm"
+                                    type="date" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Language -->
+                    <div class="flex flex-col gap-1.5 mb-5">
+                        <label class="text-xs font-semibold text-slate-400">Output Language</label>
+                        <select id="language"
+                            class="w-full rounded-lg bg-slate-800 border border-slate-700 text-white focus:ring-1 focus:ring-primary focus:border-primary transition-all px-3 py-2.5 text-sm">
+                            <option value="English">English</option>
+                            <option value="German">German</option>
+                            <option value="Romanian">Romanian</option>
+                            <option value="French">French</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="Italian">Italian</option>
+                            <option value="Portuguese">Portuguese</option>
+                            <option value="Japanese">Japanese</option>
+                            <option value="Chinese">Chinese</option>
+                        </select>
+                    </div>
+
+                    <!-- Generate -->
+                    <button id="generate-btn" onclick="generateChangelog()"
+                        class="w-full bg-primary text-background-dark font-bold py-3 rounded-lg shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm">
+                        <span class="material-symbols-outlined text-sm">rocket_launch</span>Generate Changelog
+                    </button>
+
+                    <!-- Error -->
+                    <div id="error-box"
+                        class="hidden mt-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-3 py-2.5 text-xs leading-relaxed">
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Rechte Spalte: Changelog-Ausgabe -->
+        <main class="flex-1 flex flex-col overflow-hidden relative">
+
+            <!-- Leerzustand: wird angezeigt solange noch kein Changelog generiert wurde -->
+            <div id="empty-state" class="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
+                <div
+                    class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mb-2">
+                    <span class="material-symbols-outlined text-3xl text-slate-600">description</span>
+                </div>
+                <h2 class="text-xl font-bold text-slate-400">No changelog yet</h2>
+                <p class="text-sm text-slate-600 max-w-xs">Enter a GitHub repository URL and click "Generate Changelog"
+                    to get started.</p>
+            </div>
+
+            <!-- Lade-Overlay: überlagert den Output-Bereich während die Pipeline läuft. Zeigt die vier Pipeline-Schritte als animierte Fortschrittsanzeige -->
+            <div id="loading-overlay"
+                class="hidden absolute inset-0 bg-background-dark/90 backdrop-blur-sm flex flex-col items-center justify-center gap-6 z-10">
+                <div class="w-full max-w-sm">
+                    <p class="text-center text-sm font-semibold text-white mb-6">Generating your changelog…</p>
+                    <div class="space-y-4" id="progress-steps"></div>
+                </div>
+            </div>
+
+            <!-- Ergebnisbereich: wird nach erfolgreicher Generierung eingeblendet -->
+            <div id="result-area" class="hidden flex-1 flex flex-col overflow-hidden">
+                <div
+                    class="flex-shrink-0 border-b border-slate-800/50 px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="material-symbols-outlined text-primary text-sm flex-shrink-0">description</span>
+                        <span class="text-sm font-bold text-white truncate">CHANGELOG.md</span>
+                        <span id="stats-bar" class="text-xs text-slate-500 hidden sm:block"></span>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <div id="category-badges" class="flex gap-1.5 flex-wrap"></div>
+                        <div class="flex gap-1.5 ml-2">
+                            <button id="btn-tab-preview" onclick="showTab('rendered')"
+                                class="px-2.5 py-1.5 text-xs font-semibold bg-primary/10 text-primary border border-primary/20 rounded flex items-center gap-1 transition-colors">
+                                <span class="material-symbols-outlined text-xs">preview</span>Preview
+                            </button>
+                            <button id="btn-tab-raw" onclick="showTab('raw')"
+                                class="px-2.5 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 rounded flex items-center gap-1 transition-colors text-slate-300">
+                                <span class="material-symbols-outlined text-xs">code</span>Raw
+                            </button>
+                            <button onclick="copyMarkdown()"
+                                class="px-2.5 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 rounded flex items-center gap-1 transition-colors text-slate-300">
+                                <span class="material-symbols-outlined text-xs">content_copy</span><span
+                                    id="copy-label">Copy</span>
+                            </button>
+                            <a id="download-btn" download="CHANGELOG.md"
+                                class="px-2.5 py-1.5 text-xs font-semibold bg-primary text-background-dark rounded flex items-center gap-1 hover:brightness-110 transition-all">
+                                <span class="material-symbols-outlined text-xs">download</span>.md
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div id="tab-rendered" class="flex-1 overflow-y-auto custom-scroll p-8">
+                    <div id="markdown-output" class="markdown-body max-w-3xl mx-auto"></div>
+                </div>
+                <div id="tab-raw" class="hidden flex-1 overflow-y-auto custom-scroll p-6">
+                    <pre id="raw-output"
+                        class="font-mono text-xs text-slate-300 whitespace-pre-wrap break-words leading-relaxed"></pre>
+                </div>
+            </div>
+        </main>
+    </template>
+
+    <template id="tpl-evaluation">
+        <div class="flex-1 overflow-y-auto custom-scroll">
+            <div class="max-w-[1000px] w-full mx-auto px-6 py-8">
+
+                <div class="mb-8">
+                    <h1 class="text-2xl font-bold text-white mb-1">Model Evaluation</h1>
+                    <p class="text-sm text-slate-500">Evaluate the NLP classifier on the held-out test set. Metrics
+                        include Accuracy, Precision, Recall and F1-Score per class.</p>
+                </div>
+
+                <!-- Run -->
+                <div
+                    class="bg-slate-900/50 border border-slate-800 rounded-lg p-5 mb-6 flex items-center justify-between gap-4 flex-wrap">
+                    <div>
+                        <p class="text-sm font-semibold text-white mb-0.5">Run Evaluation</p>
+                        <p class="text-xs text-slate-500">Requires a trained model in <code
+                                class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">models/bert_classifier</code>
+                        </p>
+                    </div>
+                    <button id="eval-btn" onclick="runEvaluation()"
+                        class="flex items-center gap-2 px-5 py-2.5 bg-primary text-background-dark font-bold rounded-lg hover:brightness-110 transition-all text-sm shadow-lg shadow-primary/20 disabled:opacity-50">
+                        <span class="material-symbols-outlined text-sm">play_circle</span>Run Evaluation
+                    </button>
+                </div>
+
+                <div id="error-box-eval"
+                    class="hidden mb-6 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-4 py-3 text-sm">
+                </div>
+
+                <div id="eval-results" class="hidden flex flex-col gap-6">
+                    <!-- Metrics grid -->
+                    <div>
+                        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Overall Metrics
+                        </h2>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" id="metrics-grid"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Table -->
+                        <div class="bg-slate-900/50 border border-slate-800 rounded-lg overflow-hidden">
+                            <div class="px-5 py-3 border-b border-slate-800 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-sm">table_chart</span>
+                                <span class="text-sm font-semibold">Per-Class Metrics</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-slate-800/50">
+                                        <tr>
+                                            <th class="py-2.5 px-4 text-left text-xs font-semibold text-slate-500">
+                                                Category</th>
+                                            <th class="py-2.5 px-4 text-right text-xs font-semibold text-slate-500">
+                                                Precision</th>
+                                            <th class="py-2.5 px-4 text-right text-xs font-semibold text-slate-500">
+                                                Recall</th>
+                                            <th class="py-2.5 px-4 text-right text-xs font-semibold text-slate-500">F1
+                                            </th>
+                                            <th class="py-2.5 px-4 text-right text-xs font-semibold text-slate-500">
+                                                Support</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="per-class-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- F1 bars -->
+                        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-5">
+                            <div class="flex items-center gap-2 mb-4">
+                                <span class="material-symbols-outlined text-primary text-sm">bar_chart</span>
+                                <span class="text-sm font-semibold">F1-Score by Category</span>
+                            </div>
+                            <div class="space-y-3" id="f1-bars"></div>
+                        </div>
+                    </div>
+
+                    <!-- Confusion matrix -->
+                    <div class="bg-slate-900/50 border border-slate-800 rounded-lg overflow-hidden">
+                        <div class="px-5 py-3 border-b border-slate-800 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-sm">grid_on</span>
+                            <span class="text-sm font-semibold">Confusion Matrix</span>
+                            <span class="text-xs text-slate-500 ml-1">rows = true label, cols = predicted</span>
+                        </div>
+                        <div class="p-5 overflow-x-auto">
+                            <div id="confusion-matrix"></div>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-600 text-center pb-4">Full results saved to <code
+                            class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">data/evaluation_results.json</code>
+                    </p>
+                </div>
+            </div>
         </div>
-      </div>
+    </template>
 
-      <div id="date-range-inputs" class="form-group inline-group">
-        <div>
-          <label for="date-from">From</label>
-          <input type="date" id="date-from" />
+
+    <!-- EVALUATION MODAL -->
+    <div id="eval-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeEvalModal()"></div>
+        <!-- Modal -->
+        <div
+            class="relative bg-[#0d1520] border border-slate-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-primary text-sm">science</span>
+                    </div>
+                    <div>
+                        <h2 class="text-base font-bold text-white">Model Evaluation</h2>
+                        <p class="text-xs text-slate-500">NLP classifier performance on held-out test set</p>
+                    </div>
+                </div>
+                <button onclick="closeEvalModal()"
+                    class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+
+            <!-- Scrollable body -->
+            <div class="flex-1 overflow-y-auto custom-scroll p-6">
+
+                <!-- Run button -->
+                <div
+                    class="bg-slate-900/60 border border-slate-800 rounded-lg p-4 mb-6 flex items-center justify-between gap-4 flex-wrap">
+                    <div>
+                        <p class="text-sm font-semibold text-white mb-0.5">Run Evaluation</p>
+                        <p class="text-xs text-slate-500">Requires a trained model in <code
+                                class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 text-xs">models/bert_classifier</code>
+                        </p>
+                    </div>
+                    <button id="eval-btn" onclick="runEvaluation()"
+                        class="flex items-center gap-2 px-5 py-2.5 bg-primary text-background-dark font-bold rounded-lg hover:brightness-110 transition-all text-sm shadow-lg shadow-primary/20 disabled:opacity-50 flex-shrink-0">
+                        <span class="material-symbols-outlined text-sm">play_circle</span>Run Evaluation
+                    </button>
+                </div>
+
+                <div id="error-box-eval"
+                    class="hidden mb-5 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-4 py-3 text-sm">
+                </div>
+
+                <div id="eval-results" class="hidden flex flex-col gap-5">
+                    <!-- Metrics grid -->
+                    <div>
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Overall Metrics
+                        </p>
+                        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2" id="metrics-grid"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <!-- Table -->
+                        <div class="bg-slate-900/60 border border-slate-800 rounded-lg overflow-hidden">
+                            <div class="px-4 py-3 border-b border-slate-800 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-sm">table_chart</span>
+                                <span class="text-sm font-semibold">Per-Class Metrics</span>
+                            </div>
+                            <table class="w-full text-sm">
+                                <thead class="bg-slate-800/50">
+                                    <tr>
+                                        <th class="py-2 px-4 text-left text-xs font-semibold text-slate-500">Category
+                                        </th>
+                                        <th class="py-2 px-4 text-right text-xs font-semibold text-slate-500">Precision
+                                        </th>
+                                        <th class="py-2 px-4 text-right text-xs font-semibold text-slate-500">Recall
+                                        </th>
+                                        <th class="py-2 px-4 text-right text-xs font-semibold text-slate-500">F1</th>
+                                        <th class="py-2 px-4 text-right text-xs font-semibold text-slate-500">Support
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="per-class-tbody"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- F1 bars -->
+                        <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-4">
+                            <div class="flex items-center gap-2 mb-4">
+                                <span class="material-symbols-outlined text-primary text-sm">bar_chart</span>
+                                <span class="text-sm font-semibold">F1-Score by Category</span>
+                            </div>
+                            <div class="space-y-3" id="f1-bars"></div>
+                        </div>
+                    </div>
+
+                    <!-- Confusion matrix -->
+                    <div class="bg-slate-900/60 border border-slate-800 rounded-lg overflow-hidden">
+                        <div class="px-4 py-3 border-b border-slate-800 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-sm">grid_on</span>
+                            <span class="text-sm font-semibold">Confusion Matrix</span>
+                            <span class="text-xs text-slate-500 ml-1">rows = true, cols = predicted</span>
+                        </div>
+                        <div class="p-4 overflow-x-auto">
+                            <div id="confusion-matrix"></div>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-600 text-center">Results saved to <code
+                            class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">data/evaluation_results.json</code>
+                    </p>
+                </div>
+            </div>
         </div>
-        <div>
-          <label for="date-to">To</label>
-          <input type="date" id="date-to" />
-        </div>
-      </div>
+    </div>
 
-      <div id="n-commits-input" class="form-group hidden">
-        <label for="last-n">Number of commits</label>
-        <input type="number" id="last-n" min="1" max="500" value="50" />
-      </div>
+    <!-- Button | Evaluation Button bottom-left -->
+    <button onclick="openEvalModal()"
+        class="fixed bottom-6 left-6 z-40 flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white rounded-xl text-sm font-semibold shadow-lg transition-all group">
+        <span
+            class="material-symbols-outlined text-sm text-primary group-hover:scale-110 transition-transform">science</span>
+        Model Evaluation
+    </button>
 
-      <div class="form-group">
-        <label for="language">Output Language</label>
-        <select id="language">
-          <option value="English" selected>English</option>
-          <option value="German">German</option>
-          <option value="Romanian">Romanian</option>
-          <option value="French">French</option>
-          <option value="Spanish">Spanish</option>
-          <option value="Italian">Italian</option>
-          <option value="Portuguese">Portuguese</option>
-          <option value="Japanese">Japanese</option>
-          <option value="Chinese">Chinese</option>
-        </select>
-      </div>
-
-      <button class="btn-primary" id="generate-btn" onclick="generateChangelog()">
-        Generate Changelog
-      </button>
-
-      <div id="error-box" class="error-box hidden"></div>
-    </section>
-
-    <!-- ── Loading ───────────────────────────────────────────────────── -->
-    <section class="card hidden" id="loading-card">
-      <div class="spinner-wrap">
-        <div class="spinner"></div>
-        <p>Fetching commits, classifying &amp; summarizing…</p>
-        <p class="hint">This may take 10–30 seconds depending on repository size.</p>
-      </div>
-    </section>
-
-    <!-- ── Result ────────────────────────────────────────────────────── -->
-    <section class="card hidden" id="result-card">
-      <div class="result-header">
-        <div id="stats-bar" class="stats-bar"></div>
-        <div class="result-actions">
-          <button class="btn-secondary" onclick="copyMarkdown()">Copy Markdown</button>
-          <a id="download-btn" class="btn-primary" download="CHANGELOG.md">Download .md</a>
-        </div>
-      </div>
-      <div class="tab-bar">
-        <button class="tab active" onclick="showTab('rendered')">Preview</button>
-        <button class="tab" onclick="showTab('raw')">Raw Markdown</button>
-      </div>
-      <div id="tab-rendered" class="tab-content">
-        <div id="markdown-output" class="markdown-body"></div>
-      </div>
-      <div id="tab-raw" class="tab-content hidden">
-        <pre id="raw-output"></pre>
-      </div>
-    </section>
-
-    <!-- ── Evaluation ────────────────────────────────────────────────── -->
-    <section class="card" id="eval-card">
-      <h2> Model Evaluation</h2>
-      <p class="hint">Run the classifier evaluation on the held-out test set. Requires a trained model.</p>
-      <button class="btn-secondary" id="eval-btn" onclick="runEvaluation()">Run Evaluation</button>
-      <div id="eval-result" class="hidden"></div>
-    </section>
-  </main>
-
-  <script src="/static/app.js"></script>
+    <script src="/static/app.js"></script>
 </body>
+
 </html>

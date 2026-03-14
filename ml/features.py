@@ -1,5 +1,9 @@
+import re
+import numpy as np
+from ml.utils import CATEGORIES
+
 """
-features.py — Gemeinsame Feature-Extraktion fuer Training, Inference und Evaluation.
+Gemeinsame Feature-Extraktion fuer Training, Inference und Evaluation.
 
 Wird importiert von:
   - ml/train_bert.py
@@ -9,13 +13,10 @@ Wird importiert von:
 Alle drei muessen identische Features erzeugen!
 """
 
-import re
-
-import numpy as np
-
-from ml.utils import CATEGORIES
 
 # ── Conventional-Commit-Prefix Mapping ───────────────────────────────────────
+# PREFIX_MAP: Bildet Conventional-Commit-Präfixe auf die 6 Kategorien ab
+# z.B. "feat:" → "feature", "fix:" → "bugfix"
 PREFIX_MAP = {
     "feat": "feature", "feature": "feature",
     "fix": "bugfix", "bugfix": "bugfix", "hotfix": "bugfix", "bug": "bugfix",
@@ -26,10 +27,13 @@ PREFIX_MAP = {
     "style": "chore", "perf": "chore",
 }
 
+# Regex: Extrahiert den Prefix (z.B. "feat:", "fix(scope):", etc.)
 _PREFIX_RE = re.compile(r"^([a-z]+)(\([^)]+\))?!?\s*:\s*", re.IGNORECASE)
+# Kategorie-zu-Index-Mapping für schnelle Lookups
 _CAT2IDX   = {c: i for i, c in enumerate(CATEGORIES)}
 
 # ── Keyword-Features: diskriminative Woerter pro Kategorie ───────────────────
+# Diese Wörter sind typisch für jede Commit-Kategorie und helfen dem Modell
 KEYWORD_GROUPS = {
     "feature":       ["add", "new", "implement", "create", "introduce", "support",
                       "enable", "allow", "build", "integrate", "initial", "init",
@@ -51,15 +55,23 @@ KEYWORD_GROUPS = {
                       "config", "setup", "install", "pipeline", "workflow"],
 }
 
+# Flache Liste aller Keywords für effiziente Suche
 ALL_KEYWORDS = [kw for kws in KEYWORD_GROUPS.values() for kw in kws]
+
+# Keyword-zu-Index-Mapping für schnelle Lookups
 _KW_INDEX    = {kw: i for i, kw in enumerate(ALL_KEYWORDS)}
+
+# Regex zum Finden aller Keywords in einer Nachricht (Wortgrenzen beachten)
 _KW_RE       = re.compile(
     r"\b(" + "|".join(re.escape(k) for k in ALL_KEYWORDS) + r")\b",
     re.IGNORECASE,
 )
 
 # Gewichtungen — muessen in Training UND Inference gleich sein
+# Prefix-Features bekommen stärkeres Gewicht (10x) weil sie sehr zuverlässig sind
 PREFIX_WEIGHT  = 10.0
+
+# Keywords bekommen mittleres Gewicht (3x) für zusätzlichen Kontext
 KEYWORD_WEIGHT = 3.0
 
 
@@ -70,7 +82,7 @@ def strip_prefix(msg: str) -> str:
 
 
 def extract_prefix_features(messages: list[str]) -> np.ndarray:
-    """One-Hot fuer Conventional-Commit-Prefix. Dim: 6 + 1 ('kein Prefix')."""
+    """One-Hot für Conventional-Commit-Prefix. Dim: 6 + 1 ('kein Prefix')."""
     n = len(CATEGORIES)
     out = np.zeros((len(messages), n + 1), dtype=np.float32)
     for i, msg in enumerate(messages):
@@ -88,10 +100,14 @@ def extract_prefix_features(messages: list[str]) -> np.ndarray:
 
 
 def extract_keyword_features(messages: list[str]) -> np.ndarray:
-    """Binaerer Keyword-Vektor — welche diskriminativen Woerter kommen vor?"""
+    """Binaerer Keyword-Vektor — welche diskriminativen Woerter kommen vor?
+        Ausgabe: pro Nachricht ein Vektor der Länge len(ALL_KEYWORDS)
+    """
     out = np.zeros((len(messages), len(ALL_KEYWORDS)), dtype=np.float32)
     for i, msg in enumerate(messages):
+        # Entferne Prefix und konvertiere in Kleinbuchstaben für Case-Insensitive Matching
         text = strip_prefix(msg).lower()
+        # Finde alle Keywords in der Nachricht und markiere sie als gefunden
         for match in _KW_RE.finditer(text):
             kw = match.group(1).lower()
             if kw in _KW_INDEX:
@@ -101,11 +117,17 @@ def extract_keyword_features(messages: list[str]) -> np.ndarray:
 
 def build_features(messages: list[str], st_model, batch_size: int = 64) -> np.ndarray:
     """
-    Kombinierte Features:
-      BERT-Embedding (ohne Prefix)  +  Prefix-One-Hot (x10)  +  Keyword-Vektor (x3)
+    Kombiniert mehrere Feature-Typen in einen großen Vektor:
+    - BERT-Embedding (ohne Prefix): ~384 Dimensionen
+    - Prefix-One-Hot (× 10): 7 Dimensionen
+    - Keyword-Vektor (× 3): ~90 Dimensionen
+    Gesamt: ~481 Dimensionen als Input für den Klassifizierer
     """
+    # Schritt 1: Entferne Prefixe und encode mit Sentence-BERT
     stripped   = [strip_prefix(m) for m in messages]
     embeddings = st_model.encode(stripped, batch_size=batch_size, show_progress_bar=True)
+    # Schritt 2: Extrahiere und gewichte Prefix- und Keyword-Features
     prefix_f   = extract_prefix_features(messages)
     keyword_f  = extract_keyword_features(messages)
+    # Schritt 3: Stapel alles zusammen zu einem großen Feature-Vektor
     return np.hstack([embeddings, prefix_f * PREFIX_WEIGHT, keyword_f * KEYWORD_WEIGHT])

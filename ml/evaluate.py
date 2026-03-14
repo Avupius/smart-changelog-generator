@@ -1,53 +1,49 @@
-"""
-evaluate.py — Phase 3 des NLP-Pipelines (Evaluation).
-
-Evaluiert den trainierten SentenceTransformer + sklearn Klassifikator
-auf dem held-out Test-Set.
-
-Metriken:
-  - Accuracy
-  - Precision (macro, micro, weighted)
-  - Recall    (macro, micro, weighted)
-  - F1-Score  (macro, micro, weighted)
-  - Per-Class: Precision, Recall, F1, Support
-  - Confusion Matrix (6×6)
-
-Usage:
-    python ml/evaluate.py
-    python ml/evaluate.py --test data/splits/test.jsonl --model models/bert_classifier
-    python ml/evaluate.py --plot   # speichert Confusion Matrix als PNG
-"""
-
 import argparse
 import json
 import pickle
 import sys
 from pathlib import Path
-
+from sentence_transformers import SentenceTransformer
 import numpy as np
-from sklearn.metrics import (
-    accuracy_score,
-    classification_report,
-    confusion_matrix,
-    f1_score,
-    precision_score,
-    recall_score,
-)
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from sklearn.metrics import (accuracy_score, classification_report, confusion_matrix, f1_score, precision_score, recall_score,)
 from ml.features import build_features
 from ml.utils import CATEGORIES, load_jsonl
 
-DEFAULT_TEST    = "data/splits/test.jsonl"
-DEFAULT_MODEL   = "models/bert_classifier"
-ENCODER_PATH    = "models/label_encoder.pkl"
-OUTPUT_JSON     = "data/evaluation_results.json"
+"""
+Phase 3 der NLP-Pipeline (Evaluation).
+
+Evaluiert den trainierten SentenceTransformer + sklearn Klassifikator
+auf dem gehaltenen Test-Set.
+
+Berecnete Metriken:
+  - Accuracy: Gesamtgenauigkeit
+  - Precision (macro, micro, weighted): Präzision auf verschiedene Arten gemittelt
+  - Recall (macro, micro, weighted): Erinnerungsquote auf verschiedene Arten gemittelt
+  - F1-Score (macro, micro, weighted): Harmonisches Mittel von Precision und Recall
+  - Pro-Klasse: Precision, Recall, F1, Support (Anzahl echte Samples)
+  - Confusion Matrix (6×6): Zeigt Verwechslungen zwischen Kategorien
+
+Verwendung:
+    python ml/evaluate.py
+    python ml/evaluate.py --test data/splits/test.jsonl --model models/bert_classifier
+    python ml/evaluate.py --plot   # speichert Confusion Matrix als PNG
+"""
 
 
-# ─── Classifier loader ────────────────────────────────────────────────────────
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+DEFAULT_TEST    = "data/splits/test.jsonl"          # Standard Test-Set Pfad
+DEFAULT_MODEL   = "models/bert_classifier"          # Standard Modell Pfad
+ENCODER_PATH    = "models/label_encoder.pkl"        # Pfad zum Label-Encoder
+OUTPUT_JSON     = "data/evaluation_results.json"    # Ausgabedatei für Metriken
+
+
+# ─── Klassifikator laden ──────────────────────────────────────────────────────
 
 def load_classifier(model_path: str, encoder_path: str):
     """Lädt SentenceTransformer + sklearn Klassifikator, gibt predict-Funktion zurück."""
+    # Prüfe, ob der Encoder vorhanden ist (wird von train_bert.py erzeugt)
     if not Path(encoder_path).exists():
         raise FileNotFoundError(
             f"Encoder nicht gefunden: {encoder_path}\n"
@@ -56,24 +52,27 @@ def load_classifier(model_path: str, encoder_path: str):
 
     with open(encoder_path, "rb") as f:
         meta = pickle.load(f)
-
-    from sentence_transformers import SentenceTransformer
+    
     st_model = SentenceTransformer(model_path)
-    clf      = meta["sklearn_classifier"]
-    le       = meta["label_encoder"]
+    clf      = meta["sklearn_classifier"] # Der trainierte Klassifikator
+    le       = meta["label_encoder"] # Umwandlung Nummern ↔ Kategorienamen
     clf_name = meta.get("classifier_name", "sklearn")
 
     print(f"  Klassifikator: {clf_name}")
 
+    # Innere Funktion: führt Feature-Extraktion + Vorhersage durch
     def predict(messages: list[str]) -> list[str]:
-        X     = build_features(messages, st_model)
+        # Extrahiere kombinierte Features (BERT + Prefix + Keywords)
+        X = build_features(messages, st_model)
+        # Führe Vorhersage durch
         preds = clf.predict(X)
+        # Wandle numerische Vorhersagen in Kategorienamen zurück
         return list(le.inverse_transform(preds))
 
     return predict
 
 
-# ─── Plotting ─────────────────────────────────────────────────────────────────
+# ─── Confusion Matrix visualisieren ───────────────────────────────────────────
 
 def plot_confusion_matrix(cm: np.ndarray, labels: list[str], output_path: str) -> None:
     try:
@@ -83,6 +82,7 @@ def plot_confusion_matrix(cm: np.ndarray, labels: list[str], output_path: str) -
         fig, ax = plt.subplots(figsize=(8, 7))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
                     xticklabels=labels, yticklabels=labels, ax=ax)
+        #Achsenbeschriftungen
         ax.set_xlabel("Predicted", fontsize=12)
         ax.set_ylabel("True", fontsize=12)
         ax.set_title("Confusion Matrix — Commit Classifier", fontsize=14)
@@ -97,14 +97,17 @@ def plot_confusion_matrix(cm: np.ndarray, labels: list[str], output_path: str) -
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def evaluate(test_path: str, model_path: str, encoder_path: str, plot: bool = False) -> dict:
+    # Validiere Eingabedateien
     if not Path(test_path).exists():
         raise FileNotFoundError(
             f"Test-Daten nicht gefunden: {test_path}\n"
             "Zuerst ml/train_bert.py ausführen."
         )
-
+    
+    # Lade und filtere Test-Daten (nur gültige Labels)
     print(f"Lade Test-Daten aus {test_path}...")
     test_data = load_jsonl(test_path)
+    # Entferne Einträge mit ungültigen Labels
     test_data = [d for d in test_data if d.get("label") in CATEGORIES]
     print(f"Test-Samples: {len(test_data)}")
 
@@ -116,11 +119,13 @@ def evaluate(test_path: str, model_path: str, encoder_path: str, plot: bool = Fa
 
     print(f"\nLade Klassifikator aus {model_path}...")
     predict_fn = load_classifier(model_path, encoder_path)
-
+    
+    # Führe Vorhersagen auf allen Test-Samples durch
     print("Inferenz läuft...")
     y_pred = predict_fn(messages)
 
-    # ── Metriken ───────────────────────────────────────────────────────────────
+    # ── Metriken berechnen ──────────────────────────────────────────────────────
+    # Accuracy: Anteil korrekter Vorhersagen
     acc = accuracy_score(y_true, y_pred)
 
     prec_macro    = precision_score(y_true, y_pred, average="macro",    zero_division=0)
@@ -140,7 +145,7 @@ def evaluate(test_path: str, model_path: str, encoder_path: str, plot: bool = Fa
     )
     cm = confusion_matrix(y_true, y_pred, labels=CATEGORIES)
 
-    # ── Ausgabe ────────────────────────────────────────────────────────────────
+    # ── Ergebnisse ausgeben ────────────────────────────────────────────────────   
     print("\n" + "=" * 60)
     print("EVALUATION RESULTS — Commit Classifier")
     print("=" * 60)
@@ -160,14 +165,15 @@ def evaluate(test_path: str, model_path: str, encoder_path: str, plot: bool = Fa
             print(f"  {cat:<15} {r['precision']:>10.4f} {r['recall']:>10.4f} "
                   f"{r['f1-score']:>10.4f} {int(r['support']):>10}")
     print("\n" + "-" * 60)
-    print("Confusion Matrix (Zeilen=True, Spalten=Predicted):")
+    print("Confusion Matrix (Zeilen=Echtwert, Spalten=Vorhersage):")
     header = "  " + "".join(f"{c[:6]:>8}" for c in CATEGORIES)
     print(header)
     for i, cat in enumerate(CATEGORIES):
         print("  " + f"{cat[:6]:<6}" + "".join(f"{cm[i][j]:>8}" for j in range(len(CATEGORIES))))
     print("=" * 60)
 
-    # ── Speichern ──────────────────────────────────────────────────────────────
+    # ── Ergebnisse speichern ───────────────────────────────────────────────────
+    # Strukturiere alle Metriken in ein Dictionary
     results = {
         "total_samples":     len(test_data),
         "accuracy":          acc,

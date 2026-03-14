@@ -1,9 +1,8 @@
 """
-classifier.py — Runtime commit classifier.
+classifier.py — Laufzeit-Klassifizierer für Commit-Messages
 
-Laedt das trainierte SentenceTransformer + sklearn Modell einmalig beim Start
-und klassifiziert Commit-Messages in Batches.
-Fallback: einfache Regex-Heuristik wenn kein Modell vorhanden.
+Lädt das trainierte Sentence-Transformer + sklearn-Modell einmalig beim Start und klassifiziert Commit-Messages in Batches. 
+Fallback: Einfache RegEx-Heuristik, wenn kein Modell gefunden oder geladen werden kann
 """
 
 import pickle
@@ -18,79 +17,97 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from ml.features import build_features
 
+# Standardpfade für das trainierte Modell und den Label-Encoder
 MODEL_PATH   = "models/bert_classifier"
 ENCODER_PATH = "models/label_encoder.pkl"
 
+# Alle möglichen Ausgabe-Label des Klassifkators (muss mit den CATEGORIES in ml/utils.py übereinstimmen)
 CATEGORIES = ["feature", "bugfix", "documentation", "refactor", "test", "chore"]
 
-# ── Regex-Fallback ─────────────────────────────────────────────────────────────
-_REGEX_RULES: list[tuple[str, re.Pattern]] = [
-    ("feature",       re.compile(r"^(feat|feature|add|new|implement|introduce|support)", re.I)),
-    ("bugfix",        re.compile(r"^(fix|bug|hotfix|patch|resolve|correct|repair)", re.I)),
-    ("documentation", re.compile(r"^(doc|docs|documentation|readme|changelog|comment|typo)", re.I)),
-    ("refactor",      re.compile(r"^(refactor|refact|clean|cleanup|rename|restructure|simplify|extract|move)", re.I)),
-    ("test",          re.compile(r"^(test|tests|spec|coverage|pytest|unittest)", re.I)),
-    ("chore",         re.compile(r"^(chore|build|ci|style|format|lint|deps|dependency|bump|version|release|perf)", re.I)),
-]
-
-def _regex_classify(message: str) -> tuple[str, float]:
-    stripped = re.sub(r"^[a-z]+(\([^)]+\))?!?:\s*", "", message, flags=re.IGNORECASE)
-    subject = (stripped or message).strip()
-    for label, pattern in _REGEX_RULES:
-        if pattern.match(subject):
-            return label, 0.7
-    return "chore", 0.3
-
+class ModelNotTrainedError(Exception):
+    """Wird geworfen, wenn kein trainiertes Modell gefunden wurde."""
+    pass
 
 class Classifier:
+    """
+    Kapselt das trainierte NLP-Modell und stellt eine einheitliche Klassifizierungs-API bereit.
+    Vor der ersten Verwendung muss load() aufgerufen werden, ist kein Modell vorhanden, wird eine ModelNotTrainedError geworfen.
+    """
     def __init__(self):
-        self._mode: Optional[str] = None
-        self._st_model = None
-        self._clf      = None
-        self._le       = None
+        self._loaded: bool = False # True nach erfolgreichem load()
+        self._st_model = None # SentenceTransformer-Modell für die Feature-Extraktion
+        self._clf      = None # Trainierter sklearn-Klassifikator
+        self._le       = None # Label-Encoder für Kategorie-Indizes <-> Namen
 
     def load(self, model_path: str = MODEL_PATH, encoder_path: str = ENCODER_PATH) -> None:
+        """
+        Lädt das trainierte Modell und den zugehörigen Label-Encoder.
+
+        Raises:
+            ModelNotTrainedError: Wenn kein trainiertes Modell gefunden wird.
+            RuntimeError: Bei anderen Fehlern (z.B. beschädigte Dateien, Inkompatibilitäten).
+        """
         if not Path(encoder_path).exists():
-            print(f"[Classifier] Kein Modell gefunden ({encoder_path}). Nutze Regex-Fallback.")
-            self._mode = "regex"
-            return
+            raise ModelNotTrainedError(f"Kein trainiertes Modell gefunden unter '{encoder_path}'. Bitte ml/train_bert.py ausführen.")
 
         with open(encoder_path, "rb") as f:
             meta = pickle.load(f)
 
         try:
             from sentence_transformers import SentenceTransformer
+
             self._st_model = SentenceTransformer(model_path)
             self._clf      = meta["sklearn_classifier"]
             self._le       = meta["label_encoder"]
-            self._mode     = "sklearn"
+            self.is_loaded = True
+
             clf_name = meta.get("classifier_name", "sklearn")
             print(f"[Classifier] Geladen: {clf_name}")
+
         except Exception as e:
-            print(f"[Classifier] Ladefehler: {e}. Nutze Regex-Fallback.")
-            self._mode = "regex"
+            raise RuntimeError(f"Fehler beim Laden des Modells: {e}")
 
     @property
     def is_loaded(self) -> bool:
-        return self._mode is not None
+        """Gibt True zurück, wenn das Modell erfolgreich geladen wurde."""
+        return self._loaded
 
-    @property
-    def mode(self) -> str:
-        return self._mode or "not loaded"
+    def _check_loaded(self):
+        """Wirft ModelNotTrainedError, wenn das Modell nicht geladen ist."""
+        if not self.is_loaded:
+            raise ModelNotTrainedError("Der Klassifikator wurde noch nicht geladen. Bitte load() aufrufen oder ml/train_bert.py ausführen.")
 
     def classify_batch(self, messages: list[str]) -> list[tuple[str, float]]:
+        """
+        Klassifiziert eine Liste von Commit-Messages in einem Batch.
+
+        Args:
+            messages: Liste von Commit-Messages
+
+        Returns:
+            Liste von (Label, Konfidenz)-Tupeln in derselben Reihenfolge wie die Eingabe (messages)
+        
+        Raises:
+            ModelNotTrainedError: Wenn kein Modell geladen ist 
+        """
+        self._check_loaded()
+
         if not messages:
             return []
-        if self._mode == "regex":
-            return [_regex_classify(m) for m in messages]
-        # sklearn — verwendet ml.features.build_features
+
+        # BERT-Embeddings + Feature-Vektor berechnen, dann Klassifikator und Wahrscheinlichkeiten abrufen
         X      = build_features(messages, self._st_model)
         preds  = self._clf.predict(X)
         proba  = self._clf.predict_proba(X)
         labels = list(self._le.inverse_transform(preds))
+
+        # Höchste Wahrscheinlichkeit als Konfidenz zurückgeben
         confs  = proba.max(axis=1).tolist()
         return list(zip(labels, confs))
 
     def classify_one(self, message: str) -> tuple[str, float]:
+        """
+        Klassifiziert eine einzelne Commit-Message. Gibt (Label, Konfidenz) zurück.
+        """
         results = self.classify_batch([message])
         return results[0] if results else ("chore", 0.0)
