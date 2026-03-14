@@ -59,7 +59,7 @@ class Classifier:
             self._st_model = SentenceTransformer(model_path)
             self._clf      = meta["sklearn_classifier"]
             self._le       = meta["label_encoder"]
-            self.is_loaded = True
+            self._loaded = True
 
             clf_name = meta.get("classifier_name", "sklearn")
             print(f"[Classifier] Geladen: {clf_name}")
