@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Changelog Generator</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo"> Smart Changelog Generator</span>
+      <span class="tagline">NLP-powered changelogs from GitHub commits</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ── Form Card ───────────────────────────────────────────────────── -->
+    <section class="card" id="form-card">
+      <h2>Generate Changelog</h2>
+
+      <div class="form-group">
+        <label for="repo-url">GitHub Repository URL</label>
+        <input
+          type="text"
+          id="repo-url"
+          placeholder="https://github.com/owner/repository"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="github-token">GitHub Token <span class="optional">(optional — required for private repos)</span></label>
+        <input
+          type="password"
+          id="github-token"
+          placeholder="ghp_xxxxxxxxxxxx"
+          autocomplete="off"
+        />
+      </div>
+
+      <!-- ── Mode toggle ────────────────────────────────────────────── -->
+      <div class="form-group">
+        <label>Commit Selection</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="mode" value="date" id="mode-date" checked />
+            Date Range
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="mode" value="n" id="mode-n" />
+            Last N Commits
+          </label>
+        </div>
+      </div>
+
+      <div id="date-range-inputs" class="form-group inline-group">
+        <div>
+          <label for="date-from">From</label>
+          <input type="date" id="date-from" />
+        </div>
+        <div>
+          <label for="date-to">To</label>
+          <input type="date" id="date-to" />
+        </div>
+      </div>
+
+      <div id="n-commits-input" class="form-group hidden">
+        <label for="last-n">Number of commits</label>
+        <input type="number" id="last-n" min="1" max="500" value="50" />
+      </div>
+
+      <div class="form-group">
+        <label for="language">Output Language</label>
+        <select id="language">
+          <option value="English" selected>English</option>
+          <option value="German">German</option>
+          <option value="Romanian">Romanian</option>
+          <option value="French">French</option>
+          <option value="Spanish">Spanish</option>
+          <option value="Italian">Italian</option>
+          <option value="Portuguese">Portuguese</option>
+          <option value="Japanese">Japanese</option>
+          <option value="Chinese">Chinese</option>
+        </select>
+      </div>
+
+      <button class="btn-primary" id="generate-btn" onclick="generateChangelog()">
+        Generate Changelog
+      </button>
+
+      <div id="error-box" class="error-box hidden"></div>
+    </section>
+
+    <!-- ── Loading ───────────────────────────────────────────────────── -->
+    <section class="card hidden" id="loading-card">
+      <div class="spinner-wrap">
+        <div class="spinner"></div>
+        <p>Fetching commits, classifying &amp; summarizing…</p>
+        <p class="hint">This may take 10–30 seconds depending on repository size.</p>
+      </div>
+    </section>
+
+    <!-- ── Result ────────────────────────────────────────────────────── -->
+    <section class="card hidden" id="result-card">
+      <div class="result-header">
+        <div id="stats-bar" class="stats-bar"></div>
+        <div class="result-actions">
+          <button class="btn-secondary" onclick="copyMarkdown()">Copy Markdown</button>
+          <a id="download-btn" class="btn-primary" download="CHANGELOG.md">Download .md</a>
+        </div>
+      </div>
+      <div class="tab-bar">
+        <button class="tab active" onclick="showTab('rendered')">Preview</button>
+        <button class="tab" onclick="showTab('raw')">Raw Markdown</button>
+      </div>
+      <div id="tab-rendered" class="tab-content">
+        <div id="markdown-output" class="markdown-body"></div>
+      </div>
+      <div id="tab-raw" class="tab-content hidden">
+        <pre id="raw-output"></pre>
+      </div>
+    </section>
+
+    <!-- ── Evaluation ────────────────────────────────────────────────── -->
+    <section class="card" id="eval-card">
+      <h2> Model Evaluation</h2>
+      <p class="hint">Run the classifier evaluation on the held-out test set. Requires a trained model.</p>
+      <button class="btn-secondary" id="eval-btn" onclick="runEvaluation()">Run Evaluation</button>
+      <div id="eval-result" class="hidden"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

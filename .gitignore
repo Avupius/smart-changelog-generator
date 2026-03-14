@@ -1,0 +1,35 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# ML model files (large — add to git only if intentional)
+models/bert_classifier/
+models/*.pkl
+
+# Training data (may contain private commit history)
+data/labeled/
+data/splits/
+data/raw/
+data/evaluation_results.json
+data/confusion_matrix.png
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
