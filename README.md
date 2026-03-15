@@ -1,160 +1,232 @@
 # Smart Changelog Generator
 
-An NLP pipeline that automatically generates structured, categorized, and summarized changelogs from GitHub commits — without manual configuration, for any repository.
+Eine NLP-Pipeline, die automatisch strukturierte, kategorisierte und zusammengefasste Changelogs aus GitHub-Commits generiert, für beliebige Repositories, ohne manuelle Konfiguration.
 
-> Bachelor module project for **Natural Language Processing**
+> Bachelormodul-Projekt für **Natural Language Processing** — WiSe 25/26
 
 ---
 
-## Architecture
+## Funktionsweise
 
 ```
-GitHub API  →  Commit Classifier (Sentence-BERT)  →  GPT-4o-mini Summarizer  →  Markdown Changelog
-                       ↑
-              Trained on 10k labeled commits
-              (labeled via GPT-4o-mini)
+GitHub API  →  Commit-Klassifikator (Sentence-BERT)  →  GPT-4o-mini Summarizer  →  Markdown-Changelog
+                          ↑
+               Trainiert auf gelabelten Commits
+               (gelabelt via GPT-4o-mini)
 ```
 
-### 6 Commit Categories
-| Category | Description |
+Commits werden aus einem beliebigen GitHub-Repository abgerufen, von einem trainierten NLP-Modell in eine von sechs Kategorien klassifiziert und anschließend pro Kategorie durch GPT-4o-mini in prägnante Bullet-Points zusammengefasst.
+
+### Commit-Kategorien
+
+| Kategorie | Beschreibung |
 |---|---|
-| `feature` | New functionality or capabilities |
-| `bugfix` | Bug fixes and error corrections |
-| `documentation` | Docs, README, comments |
-| `refactor` | Code restructuring without behavior change |
-| `test` | Test additions and fixes |
-| `chore` | Build, CI/CD, dependencies, tooling |
+| `feature` | Neue Funktionalität oder Features |
+| `bugfix` | Fehlerbehebungen und Korrekturen |
+| `documentation` | Dokumentation, README, Kommentare |
+| `refactor` | Code-Umstrukturierung ohne Verhaltensänderung |
+| `test` | Hinzufügen oder Anpassen von Tests |
+| `chore` | Build, CI/CD, Abhängigkeiten, Tooling |
+
+---
+
+## Voraussetzungen
+
+- Python 3.11+
+- OpenAI API Key
+- GitHub Token (optional, aber empfohlen für höhere Rate-Limits und private Repositories)
 
 ---
 
 ## Setup
 
-### 1. Install dependencies
+### 1. Abhängigkeiten installieren
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure environment
+### 2. Umgebungsvariablen konfigurieren
 
 ```bash
 cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY and optionally GITHUB_TOKEN
 ```
+
+`.env` öffnen und die API-Keys eintragen:
+
+```
+OPENAI_API_KEY=dein_openai_api_key
+GITHUB_TOKEN=dein_github_token
+```
+
+Der `GITHUB_TOKEN` ist optional — ohne Token ist die GitHub API auf 60 Anfragen pro Stunde begrenzt, mit Token auf 5.000 Anfragen pro Stunde. Für private Repositories ist ein Token erforderlich.
 
 ---
 
-## NLP Pipeline (run in order)
-
-### Step 1 — Label training data
-
-Fetches ~10,000 commits from 20 popular GitHub repositories and labels each with GPT-4o-mini:
+## Webanwendung starten
 
 ```bash
-python ml/label_commits.py
-# Output: data/labeled/commits_labeled.jsonl
+uvicorn app.main:app
 ```
 
-### Step 2 — Train the classifier
+Anschließend im Browser [http://localhost:8000](http://localhost:8000) öffnen.
 
-Fine-tunes a Sentence-BERT model (`all-MiniLM-L6-v2`) on the labeled data:
+### Verwendung
 
-```bash
-python ml/train_bert.py
-# Output: models/bert_classifier/ + models/label_encoder.pkl
-# Also creates: data/splits/{train,val,test}.jsonl
-```
+1. GitHub-Repository-URL eingeben (z.B. `https://github.com/pallets/flask`)
+2. Optional: GitHub-Token eingeben (erforderlich für private Repositories)
+3. Zeitraum **oder** Anzahl der letzten Commits auswählen
+4. Ausgabesprache wählen
+5. **Generate Changelog** klicken
 
-Options:
-```bash
-python ml/train_bert.py --epochs 5 --force-sklearn  # use LogisticRegression fallback
-```
+Der generierte Changelog wird als gerendertes Markdown im Browser angezeigt und kann als `.md`-Datei heruntergeladen werden.
 
-### Step 3 — Evaluate the classifier
-
-Computes full NLP classification metrics on the held-out test set:
-
-```bash
-python ml/evaluate.py
-python ml/evaluate.py --plot  # also saves confusion matrix as PNG
-```
-
-**Metrics reported:**
-- Accuracy
-- Precision (macro / micro / weighted)
-- Recall (macro / micro / weighted)
-- F1-Score (macro / micro / weighted)
-- Per-class: Precision, Recall, F1, Support
-- Confusion matrix (6×6)
-
-Output saved to `data/evaluation_results.json`.
+Über den Button **Model Evaluation** am unteren Rand der Oberfläche lässt sich die Klassifikator-Evaluation direkt im Browser starten.
 
 ---
 
-## Web Application
+## NLP-Trainingspipeline
 
-### Start the server
+Die Trainingspipeline besteht aus drei Schritten, die der Reihe nach ausgeführt werden müssen.
+
+### Schritt 1 — Trainingsdaten labeln
+
+Ruft Commits aus den konfigurierten GitHub-Repositories ab und labelt jeden Commit mit GPT-4o-mini:
 
 ```bash
-uvicorn app.main:app --reload
+python -m ml.label_commits
 ```
 
-Open [http://localhost:8000](http://localhost:8000)
+**Optionen:**
 
-### Usage
-
-1. Enter a GitHub repository URL (public or private)
-2. Optionally enter a GitHub token (required for private repos)
-3. Select a date range **or** a number of recent commits
-4. Choose an output language
-5. Click **Generate Changelog**
-
-The changelog is rendered as Markdown in the browser and can be downloaded as `.md`.
-
----
-
-## API Endpoints
-
-| Method | Path | Description |
+| Argument | Standard | Beschreibung |
 |---|---|---|
-| `POST` | `/api/changelog` | Generate changelog |
-| `GET` | `/api/languages` | List supported output languages |
-| `GET` | `/api/health` | Health check + model status |
-| `POST` | `/api/evaluate` | Run classifier evaluation |
+| `--per-repo` | `500` | Anzahl Commits pro Repository |
+| `--output` | `data/labeled/commits_labeled.jsonl` | Ausgabepfad |
+| `--token` | aus `.env` | GitHub Token (fällt auf `GITHUB_TOKEN` in `.env` zurück) |
 
-Interactive docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+Beispiel:
+```bash
+python -m ml.label_commits --per-repo 300
+```
+
+Ausgabe: `data/labeled/commits_labeled.jsonl`
+
+#### Repositories für das Training anpassen
+
+Die Liste der Repositories, aus denen Trainingsdaten gesammelt werden, befindet sich in `ml/label_commits.py` in der Variable `TARGET_REPOS`:
+
+```python
+TARGET_REPOS = [
+    "pallets/flask",
+    "django/django",
+    # weitere Repositories hier hinzufügen oder entfernen
+]
+```
+
+Jeder Eintrag ist ein GitHub-Repository im Format `owner/repo`. Es können beliebige öffentliche Repositories oder private Repositories mit einem gültigen GitHub-Token hinzugefügt werden.
 
 ---
 
-## Project Structure
+### Schritt 2 — Klassifikator trainieren
+
+Trainiert einen Sentence-BERT-Klassifikator (`paraphrase-multilingual-mpnet-base-v2`) auf den gelabelten Daten und vergleicht drei Klassifikatoren (Logistic Regression, LinearSVC, SGDClassifier):
+
+```bash
+python -m ml.train_bert
+```
+
+**Optionen:**
+
+| Argument | Standard | Beschreibung |
+|---|---|---|
+| `--model` | `paraphrase-multilingual-mpnet-base-v2` | Sentence-Transformer Basismodell |
+| `--data` | `data/labeled/commits_labeled.jsonl` | Pfad zu den Trainingsdaten |
+| `--no-grid` | — | GridSearchCV überspringen (schneller, ca. 3 Min.) |
+
+Beispiel:
+```bash
+python -m ml.train_bert --no-grid
+```
+
+Ausgabe:
+- `models/bert_classifier/` — trainiertes Sentence-Transformer-Modell
+- `models/label_encoder.pkl` — Label-Encoder und bester Klassifikator
+- `data/splits/train.jsonl`, `val.jsonl`, `test.jsonl` — stratifizierte Datensplits
+
+---
+
+### Schritt 3 — Klassifikator evaluieren
+
+Evaluiert den trainierten Klassifikator auf dem zurückgehaltenen Testset:
+
+```bash
+python -m ml.evaluate
+```
+
+**Optionen:**
+
+| Argument | Standard | Beschreibung |
+|---|---|---|
+| `--plot` | — | Confusion Matrix als PNG speichern |
+| `--test` | `data/splits/test.jsonl` | Pfad zum Testset |
+| `--model` | `models/bert_classifier` | Pfad zum trainierten Modell |
+
+Beispiel:
+```bash
+python -m ml.evaluate --plot
+```
+
+**Berechnete Metriken:**
+- Accuracy, Precision, Recall, F1-Score (macro / micro / weighted)
+- Per-Klassen-Metriken (Precision, Recall, F1, Support)
+- Konfusionsmatrix (6×6)
+
+Ausgabe: `data/evaluation_results.json`
+
+---
+
+## API-Endpunkte
+
+| Methode | Pfad | Beschreibung |
+|---|---|---|
+| `POST` | `/api/changelog` | Changelog generieren |
+| `GET` | `/api/languages` | Unterstützte Ausgabesprachen abrufen |
+| `GET` | `/api/health` | Statuscheck inkl. Modell-Ladestatus |
+| `POST` | `/api/evaluate` | Klassifikator-Evaluation starten |
+
+Interaktive API-Dokumentation: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+## Projektstruktur
 
 ```
 smart-changelog-generator/
 ├── app/
-│   ├── main.py              # FastAPI entry point
-│   ├── api/routes.py        # API endpoints
+│   ├── main.py              # FastAPI Einstiegspunkt
+│   ├── api/routes.py        # API-Endpunkte
 │   ├── core/
-│   │   ├── classifier.py    # Sentence-BERT commit classifier
-│   │   ├── summarizer.py    # Async GPT-4o-mini summarizer
-│   │   ├── changelog_gen.py # Markdown generator
-│   │   └── github_client.py # GitHub API client
-│   ├── models/schemas.py    # Pydantic models
+│   │   ├── classifier.py    # Sentence-BERT Commit-Klassifikator
+│   │   ├── summarizer.py    # Asynchroner GPT-4o-mini Summarizer
+│   │   ├── changelog_gen.py # Markdown-Generator
+│   │   └── github_client.py # GitHub API Client
+│   ├── models/schemas.py    # Pydantic-Modelle
 │   └── static/              # Frontend (HTML/CSS/JS)
 ├── ml/
-│   ├── utils.py             # Shared utilities
-│   ├── label_commits.py     # GPT-4o-mini labeling script
-│   ├── train_bert.py        # Sentence-BERT training
-│   └── evaluate.py          # Full evaluation metrics
-├── data/                    # Training data + splits (gitignored)
-├── models/                  # Trained model artifacts (gitignored)
+│   ├── label_commits.py     # GPT-4o-mini Labeling-Skript
+│   ├── train_bert.py        # Sentence-BERT Training
+│   ├── evaluate.py          # Evaluationsmetriken
+│   ├── features.py          # Feature-Extraktion
+│   └── utils.py             # Gemeinsame Hilfsfunktionen
+├── data/                    # Trainingsdaten + Splits (gitignored)
+├── models/                  # Trainierte Modell-Artefakte (gitignored)
 ├── requirements.txt
 └── .env.example
 ```
 
 ---
 
-## Notes
+## Autoren
 
-- The classifier falls back to a regex-based heuristic if no trained model is found, so the web app works end-to-end before training.
-- The labeling script costs approximately **$0.10** in OpenAI API credits for 10,000 commits.
-- GPU is not required for inference. Training is faster with a CUDA GPU but works on CPU.
+Cezary Kutko · Leon Gleitze
