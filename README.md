@@ -63,6 +63,24 @@ Der `GITHUB_TOKEN` ist optional — ohne Token ist die GitHub API auf 60 Anfrage
 
 ---
 
+## Schnellstart
+
+Nach dem Setup müssen folgende Schritte **einmalig** in dieser Reihenfolge ausgeführt werden, bevor die Webanwendung genutzt werden kann:
+
+**1. Modell trainieren** (Trainingsdaten liegen bereits vor):
+```bash
+python -m ml.train_bert
+```
+
+**2. Webanwendung starten:**
+```bash
+uvicorn app.main:app --reload
+```
+
+Das trainierte Modell wird unter `models/` gespeichert und beim Start der Webanwendung automatisch geladen.
+
+---
+
 ## Webanwendung starten
 
 ```bash
@@ -94,7 +112,7 @@ Der generierte Changelog wird als gerendertes Markdown im Browser angezeigt und 
 > - F1-macro: 0,801
 > - Bester Klassifikator: LinearSVC
 
-![Konfusionsmatrix](confusion_matrix.png)
+![Konfusionsmatrix](data/confusion_matrix.png)
 
 Die Trainingspipeline besteht aus drei Schritten.
 
