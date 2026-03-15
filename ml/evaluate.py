@@ -8,6 +8,8 @@ import numpy as np
 from sklearn.metrics import (accuracy_score, classification_report, confusion_matrix, f1_score, precision_score, recall_score,)
 from ml.features import build_features
 from ml.utils import CATEGORIES, load_jsonl
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 """
 Phase 3 der NLP-Pipeline (Evaluation).
@@ -76,9 +78,6 @@ def load_classifier(model_path: str, encoder_path: str):
 
 def plot_confusion_matrix(cm: np.ndarray, labels: list[str], output_path: str) -> None:
     try:
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-
         fig, ax = plt.subplots(figsize=(8, 7))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
                     xticklabels=labels, yticklabels=labels, ax=ax)

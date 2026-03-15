@@ -7,6 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from github import Github, GithubException
 from openai import OpenAI
+from ml.utils import CATEGORIES, normalize_label, normalize_message, save_jsonl
 
 """
 Phase 1 der NLP-Pipeline.
@@ -21,7 +22,6 @@ Verwendung:
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from ml.utils import CATEGORIES, normalize_label, normalize_message, save_jsonl
 
 load_dotenv()
 
