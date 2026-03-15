@@ -112,7 +112,7 @@ Der generierte Changelog wird als gerendertes Markdown im Browser angezeigt und 
 > - F1-macro: 0,801
 > - Bester Klassifikator: LinearSVC
 
-![Konfusionsmatrix](data/confusion_matrix.png)
+![Konfusionsmatrix](confusion_matrix.png)
 
 Die Trainingspipeline besteht aus drei Schritten.
 
