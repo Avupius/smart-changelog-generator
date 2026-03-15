@@ -56,7 +56,7 @@ class Classifier:
         try:
             from sentence_transformers import SentenceTransformer
 
-            self._st_model = SentenceTransformer(model_path)
+            self._st_model = SentenceTransformer(model_path, tokenizer_kwargs={"fix_mistral_regex": True})
             self._clf      = meta["sklearn_classifier"]
             self._le       = meta["label_encoder"]
             self._loaded = True

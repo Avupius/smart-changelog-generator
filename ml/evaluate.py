@@ -55,7 +55,7 @@ def load_classifier(model_path: str, encoder_path: str):
     with open(encoder_path, "rb") as f:
         meta = pickle.load(f)
     
-    st_model = SentenceTransformer(model_path)
+    st_model = SentenceTransformer(model_path, tokenizer_kwargs={"fix_mistral_regex": True})
     clf      = meta["sklearn_classifier"] # Der trainierte Klassifikator
     le       = meta["label_encoder"] # Umwandlung Nummern ↔ Kategorienamen
     clf_name = meta.get("classifier_name", "sklearn")

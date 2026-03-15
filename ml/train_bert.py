@@ -192,7 +192,7 @@ def main():
 
     # BERT-Embeddings erzeugen
     print(f"\nLade SentenceTransformer: {args.model}")
-    st_model = SentenceTransformer(args.model)
+    st_model = SentenceTransformer(args.model, tokenizer_kwargs={"fix_mistral_regex": True})
 
     train_texts = [d["message"] for d in train_data]
     val_texts = [d["message"] for d in val_data]
