@@ -5,9 +5,11 @@ import sys
 import time
 from pathlib import Path
 from dotenv import load_dotenv
-from github import Github, GithubException
+from github import Github, GithubException, Auth
 from openai import OpenAI
+from tqdm import tqdm
 from ml.utils import CATEGORIES, normalize_label, normalize_message, save_jsonl
+from collections import Counter
 
 """
 Phase 1 der NLP-Pipeline.
@@ -17,7 +19,7 @@ mit einer von 6 Kategorien mittels GPT-4o-mini. Speichert Ergebnisse als JSONL
 für die Verwendung als Trainingsdaten in train_bert.py.
 
 Verwendung:
-    python ml/label_commits.py [--token GITHUB_TOKEN] [--per-repo 500]
+    python -m ml.label_commits [--token GITHUB_TOKEN] [--per-repo 500]
 """
 
 # Add project root to path
@@ -89,9 +91,9 @@ Classify each commit into exactly one of these 6 categories:
 - chore: build system, dependencies, CI/CD, tooling, version bumps, formatting
 
 Rules:
-- Return ONLY a JSON array of labels (strings), one per message, in the same order.
+- Return ONLY a JSON object mapping index (as string) to label, e.g. {"1": "feature", "2": "bugfix"}.
 - Each label must be exactly one of: feature, bugfix, documentation, refactor, test, chore
-- No explanations, no extra text, no markdown — just the JSON array.
+- No explanations, no extra text, no markdown — just the JSON object.
 """
 
 
@@ -128,9 +130,13 @@ def fetch_repo_commits(repo_name: str, g: Github, limit: int) -> list[dict]:
 
 
 def label_batch(messages: list[str], client: OpenAI) -> list[str | None]:
-    """Rufe GPT-4o-mini auf, um einen Batch von Commit-Nachrichten zu klassifizieren."""
-    messages_json = json.dumps(messages, ensure_ascii=False)
-    user_prompt = f"Classify these {len(messages)} commit messages:\n{messages_json}"
+    """
+    Rufe GPT-4o-mini auf, um einen Batch von Commit-Nachrichten zu klassifizieren.
+    GPT gibt ein JSON-Objekt mit Index als Key zurück, z.B. {"1": "feature", "2": "bugfix"}.
+    Fehlende oder ungültige Einträge werden als None zurückgegeben.
+    """
+    commit_list = "\n".join([f"{i+1}. {msg}" for i, msg in enumerate(messages)])
+    user_prompt = f"Classify these {len(messages)} commit messages:\n{commit_list}"
 
     try:
         response = client.chat.completions.create(
@@ -141,19 +147,20 @@ def label_batch(messages: list[str], client: OpenAI) -> list[str | None]:
             ],
             temperature=0,
             max_tokens=300,
+            response_format={"type": "json_object"},
         )
         raw = response.choices[0].message.content.strip()
-        labels_raw = json.loads(raw)
-        if not isinstance(labels_raw, list) or len(labels_raw) != len(messages):
-            print(f"  WARNING: GPT returned {len(labels_raw)} labels for {len(messages)} messages")
-            return [None] * len(messages)
-        return [normalize_label(lbl) for lbl in labels_raw]
+        result = json.loads(raw)
+
+        # Label pro Index aus dem JSON-Objekt holen -- fehlende Keys werden als None behandelt
+        return [normalize_label(result.get(str(i + 1))) for i in range(len(messages))]
+
     except (json.JSONDecodeError, Exception) as e:
         print(f"  WARNING: GPT labeling error — {e}")
         return [None] * len(messages)
 
 
-# Main 
+# Main
 
 def main():
     parser = argparse.ArgumentParser(description="Label GitHub commits with GPT-4o-mini")
@@ -169,14 +176,14 @@ def main():
         sys.exit(1)
 
     client = OpenAI(api_key=openai_key)
-    g = Github(args.token) if args.token else Github()
+    g = Github(auth=Auth.Token(args.token)) if args.token else Github()
 
     per_repo = args.per_repo
     print(f"Commits pro Repo: {per_repo} | {len(TARGET_REPOS)} Repos | "
-          f"Max. {per_repo * len(TARGET_REPOS)} Commits gesamt (nach Deduplizierung weniger)")
+          f"Max. {per_repo * len(TARGET_REPOS)} Commits gesamt")
     print()
 
-    # Schritt 1: Rufe rohe Commits ab 
+    # Schritt 1: Rufe rohe Commits ab
     all_commits: list[dict] = []
     seen_normalized: set[str] = set()
 
@@ -190,13 +197,14 @@ def main():
 
     print(f"\nTotal unique commits after dedup: {len(all_commits)}")
 
-    # Schritt 2: Klassifiziere in Batches 
+    # Schritt 2: Klassifiziere in Batches
     labeled: list[dict] = []
     failed = 0
     messages = [c["message"] for c in all_commits]
+    batches = range(0, len(messages), BATCH_SIZE)
 
     print(f"\nLabeling {len(messages)} commits in batches of {BATCH_SIZE}...")
-    for i in range(0, len(messages), BATCH_SIZE):
+    for i in tqdm(batches, desc="Labeling"):
         batch_msgs = messages[i : i + BATCH_SIZE]
         batch_commits = all_commits[i : i + BATCH_SIZE]
 
@@ -213,19 +221,15 @@ def main():
                 "label": label,
             })
 
-        if (i // BATCH_SIZE) % 10 == 0:
-            print(f"  Progress: {len(labeled)} labeled, {failed} failed (batch {i // BATCH_SIZE + 1})")
-
-        # Kurze Pause zur Einhaltung der API-Limits
         time.sleep(0.1)
+
+    print(f"Labeled: {len(labeled)} | Failed: {failed}")
 
     # Schritt 3: Speichern
     save_jsonl(labeled, args.output)
     print(f"\nSaved {len(labeled)} labeled commits to {args.output}")
-    print(f"Failed/skipped: {failed}")
 
     # Label distribution
-    from collections import Counter
     dist = Counter(c["label"] for c in labeled)
     print("\nLabel distribution:")
     for cat in CATEGORIES:
