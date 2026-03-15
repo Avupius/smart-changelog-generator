@@ -39,7 +39,7 @@ ENCODER_PATH    = "models/label_encoder.pkl"        # Pfad zum Label-Encoder
 OUTPUT_JSON     = "data/evaluation_results.json"    # Ausgabedatei für Metriken
 
 
-# ─── Klassifikator laden ──────────────────────────────────────────────────────
+# Klassifikator laden
 
 def load_classifier(model_path: str, encoder_path: str):
     """Lädt SentenceTransformer + sklearn Klassifikator, gibt predict-Funktion zurück."""
@@ -72,7 +72,7 @@ def load_classifier(model_path: str, encoder_path: str):
     return predict
 
 
-# ─── Confusion Matrix visualisieren ───────────────────────────────────────────
+# Confusion Matrix visualisieren
 
 def plot_confusion_matrix(cm: np.ndarray, labels: list[str], output_path: str) -> None:
     try:
@@ -94,7 +94,7 @@ def plot_confusion_matrix(cm: np.ndarray, labels: list[str], output_path: str) -
         print("\n[INFO] matplotlib/seaborn nicht installiert — Plot übersprungen.")
 
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# Main
 
 def evaluate(test_path: str, model_path: str, encoder_path: str, plot: bool = False) -> dict:
     # Validiere Eingabedateien
@@ -124,7 +124,7 @@ def evaluate(test_path: str, model_path: str, encoder_path: str, plot: bool = Fa
     print("Inferenz läuft...")
     y_pred = predict_fn(messages)
 
-    # ── Metriken berechnen ──────────────────────────────────────────────────────
+    # Metriken berechnen
     # Accuracy: Anteil korrekter Vorhersagen
     acc = accuracy_score(y_true, y_pred)
 
@@ -145,7 +145,7 @@ def evaluate(test_path: str, model_path: str, encoder_path: str, plot: bool = Fa
     )
     cm = confusion_matrix(y_true, y_pred, labels=CATEGORIES)
 
-    # ── Ergebnisse ausgeben ────────────────────────────────────────────────────   
+    # Ergebnisse ausgeben   
     print("\n" + "=" * 60)
     print("EVALUATION RESULTS — Commit Classifier")
     print("=" * 60)
@@ -172,7 +172,7 @@ def evaluate(test_path: str, model_path: str, encoder_path: str, plot: bool = Fa
         print("  " + f"{cat[:6]:<6}" + "".join(f"{cm[i][j]:>8}" for j in range(len(CATEGORIES))))
     print("=" * 60)
 
-    # ── Ergebnisse speichern ───────────────────────────────────────────────────
+    # Ergebnisse speichern
     # Strukturiere alle Metriken in ein Dictionary
     results = {
         "total_samples":     len(test_data),

@@ -14,7 +14,7 @@ Alle drei muessen identische Features erzeugen!
 """
 
 
-# ── Conventional-Commit-Prefix Mapping ───────────────────────────────────────
+# Conventional-Commit-Prefix Mapping
 # PREFIX_MAP: Bildet Conventional-Commit-Präfixe auf die 6 Kategorien ab
 # z.B. "feat:" → "feature", "fix:" → "bugfix"
 PREFIX_MAP = {
@@ -32,7 +32,7 @@ _PREFIX_RE = re.compile(r"^([a-z]+)(\([^)]+\))?!?\s*:\s*", re.IGNORECASE)
 # Kategorie-zu-Index-Mapping für schnelle Lookups
 _CAT2IDX   = {c: i for i, c in enumerate(CATEGORIES)}
 
-# ── Keyword-Features: diskriminative Woerter pro Kategorie ───────────────────
+# Keyword-Features: diskriminative Woerter pro Kategorie
 # Diese Wörter sind typisch für jede Commit-Kategorie und helfen dem Modell
 KEYWORD_GROUPS = {
     "feature":       ["add", "new", "implement", "create", "introduce", "support",

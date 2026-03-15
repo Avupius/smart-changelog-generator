@@ -9,6 +9,10 @@ from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import LinearSVC
+from sentence_transformers import SentenceTransformer
+from sklearn.preprocessing import LabelEncoder
+from ml.features import build_features, ALL_KEYWORDS, CATEGORIES as FEAT_CATEGORIES
+from ml.utils import CATEGORIES, load_jsonl, save_jsonl, stratified_split
 
 """
 train_bert.py — Phase 2 of the NLP pipeline.
@@ -30,18 +34,13 @@ Usage:
 
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from ml.features import build_features, ALL_KEYWORDS, CATEGORIES as FEAT_CATEGORIES
-from ml.utils import CATEGORIES, load_jsonl, save_jsonl, stratified_split
 
-# DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-DEFAULT_MODEL = "sentence-transformers/all-mpnet-base-v2"
+DEFAULT_MODEL = "paraphrase-multilingual-mpnet-base-v2"
 DEFAULT_DATA = "data/labeled/commits_labeled.jsonl"
 DEFAULT_OUT = "models/bert_classifier"
 ENCODER_OUT = "models/label_encoder.pkl"
 
-
-# ─── Helpers ──────────────────────────────────────────────────────────────────
-
+#  Hilfsfunktionen
 def print_distribution(name: str, data: list[dict]) -> None:
     """Gibt die Klassenverteilung eines Datensatzes als ASCII-Balkendiagramm aus."""
     dist = Counter(d["label"] for d in data)
@@ -69,7 +68,7 @@ def print_val_metrics(y_true, y_pred, name: str) -> dict:
     return {"accuracy": acc, "f1_macro": f1m, "f1_weighted": f1w}
 
 
-# ─── Classifier Comparison ────────────────────────────────────────────────────
+# Klassifikator-Vergleich
 
 def compare_classifiers(X_train, y_train, X_val, y_val, le, use_grid: bool) -> object:
     """
@@ -79,7 +78,7 @@ def compare_classifiers(X_train, y_train, X_val, y_val, le, use_grid: bool) -> o
     val_labels = le.inverse_transform(y_val)
     candidates = {}
 
-    # ── 1. LogisticRegression ──────────────────────────────────────────────────
+    # 1. LogisticRegression 
     print("\n  Trainiere LogisticRegression...")
     if use_grid:
         grid = GridSearchCV(
@@ -98,7 +97,7 @@ def compare_classifiers(X_train, y_train, X_val, y_val, le, use_grid: bool) -> o
     m = print_val_metrics(val_labels, preds, "LogisticRegression")
     candidates["LogisticRegression"] = (clf_lr, m["f1_macro"])
 
-    # ── 2. LinearSVC (calibriert für Wahrscheinlichkeiten) ────────────────────
+    # 2. LinearSVC (calibriert für Wahrscheinlichkeiten) 
     print("\n  Trainiere LinearSVC...")
     if use_grid:
         base_svc = LinearSVC(max_iter=3000, random_state=42, class_weight="balanced")
@@ -119,7 +118,7 @@ def compare_classifiers(X_train, y_train, X_val, y_val, le, use_grid: bool) -> o
     m = print_val_metrics(val_labels, preds, "LinearSVC (calibrated)")
     candidates["LinearSVC"] = (clf_svc, m["f1_macro"])
 
-    # ── 3. SGDClassifier (schnell, gut bei großen Datensätzen) ────────────────
+    # 3. SGDClassifier (schnell, gut bei großen Datensätzen)
     print("\n  Trainiere SGDClassifier (SVM-loss)...")
     if use_grid:
         base_sgd = SGDClassifier(loss="hinge", max_iter=200, random_state=42, class_weight="balanced")
@@ -140,14 +139,14 @@ def compare_classifiers(X_train, y_train, X_val, y_val, le, use_grid: bool) -> o
     m = print_val_metrics(val_labels, preds, "SGDClassifier")
     candidates["SGDClassifier"] = (clf_sgd, m["f1_macro"])
 
-    # ── Besten wählen ──────────────────────────────────────────────────────────
+    # Besten wählen
     best_name = max(candidates, key=lambda k: candidates[k][1])
     best_clf, best_f1 = candidates[best_name]
     print(f"\n  Bester Klassifikator: {best_name} (Val F1-macro={best_f1:.4f})")
     return best_clf, best_name
 
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# Main
 
 def main():
     """
@@ -170,7 +169,7 @@ def main():
 
     use_grid = not args.no_grid
 
-    # ── Daten laden ───────────────────────────────────────────────────────────
+    # Daten laden 
     if not Path(args.data).exists():
         print(f"ERROR: Trainingsdaten nicht gefunden: {args.data}")
         print("Zuerst ml/label_commits.py ausführen.")
@@ -191,10 +190,7 @@ def main():
     save_jsonl(test_data, "data/splits/test.jsonl")
     print("\nSplits gespeichert: data/splits/")
 
-    # ── BERT-Embeddings erzeugen ───────────────────────────────────────────────
-    from sentence_transformers import SentenceTransformer
-    from sklearn.preprocessing import LabelEncoder
-
+    # BERT-Embeddings erzeugen
     print(f"\nLade SentenceTransformer: {args.model}")
     st_model = SentenceTransformer(args.model)
 
@@ -216,13 +212,13 @@ def main():
     print(f"\nFeature-Dimension: {X_train.shape[1]} "
           f"(BERT={st_model.get_sentence_embedding_dimension()} + Prefix={len(CATEGORIES)+1}×5)")
 
-    # ── Klassifikatoren vergleichen ────────────────────────────────────────────
+    # Klassifikatoren vergleichen
     print("\n" + "=" * 60)
     print("KLASSIFIKATOR-VERGLEICH (Val-Set)")
     print("=" * 60)
     best_clf, best_name = compare_classifiers(X_train, y_train, X_val, y_val, le, use_grid)
 
-    # ── Modell speichern ───────────────────────────────────────────────────────
+    # Modell speichern
     Path(args.out).mkdir(parents=True, exist_ok=True)
     st_model.save(args.out)
 
@@ -245,7 +241,7 @@ def main():
     print(f"Encoder gespeichert: {ENCODER_OUT}")
     print(f"Klassifikator: {best_name}")
 
-    # ── Evaluation automatisch starten ────────────────────────────────────────
+    # Evaluation automatisch starten
     test_path = "data/splits/test.jsonl"
     if Path(test_path).exists():
         print("\n" + "=" * 60)

@@ -16,7 +16,7 @@ mit einer von 6 Kategorien mittels GPT-4o-mini. Speichert Ergebnisse als JSONL
 für die Verwendung als Trainingsdaten in train_bert.py.
 
 Verwendung:
-    python ml/label_commits.py [--token GITHUB_TOKEN] [--target 10000]
+    python ml/label_commits.py [--token GITHUB_TOKEN] [--per-repo 500]
 """
 
 # Add project root to path
@@ -25,7 +25,7 @@ from ml.utils import CATEGORIES, normalize_label, normalize_message, save_jsonl
 
 load_dotenv()
 
-# ─── Konfiguration ────────────────────────────────────────────────────────────
+# Konfiguration
 
 TARGET_REPOS = [
     # Python / Backend
@@ -95,7 +95,7 @@ Rules:
 """
 
 
-# ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
+# Hilfsfunktionen
 
 def _is_merge_commit(msg: str) -> bool:
     """Prüfe, ob eine Nachricht ein Merge-Commit ist."""
@@ -140,7 +140,7 @@ def label_batch(messages: list[str], client: OpenAI) -> list[str | None]:
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0,
-            max_tokens=200,
+            max_tokens=300,
         )
         raw = response.choices[0].message.content.strip()
         labels_raw = json.loads(raw)
@@ -153,12 +153,13 @@ def label_batch(messages: list[str], client: OpenAI) -> list[str | None]:
         return [None] * len(messages)
 
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# Main 
 
 def main():
     parser = argparse.ArgumentParser(description="Label GitHub commits with GPT-4o-mini")
     parser.add_argument("--token", default=os.getenv("GITHUB_TOKEN"), help="GitHub token")
-    parser.add_argument("--target", type=int, default=10_000, help="Target number of labeled commits")
+    parser.add_argument("--per-repo", type=int, default=500,
+                        help="Anzahl Commits pro Repository (default: 500)")
     parser.add_argument("--output", default=str(OUTPUT_PATH), help="Output JSONL path")
     args = parser.parse_args()
 
@@ -170,16 +171,17 @@ def main():
     client = OpenAI(api_key=openai_key)
     g = Github(args.token) if args.token else Github()
 
-    per_repo = max(args.target // len(TARGET_REPOS), 200)
-    print(f"Target: {args.target} commits | ~{per_repo} per repo | {len(TARGET_REPOS)} repos")
+    per_repo = args.per_repo
+    print(f"Commits pro Repo: {per_repo} | {len(TARGET_REPOS)} Repos | "
+          f"Max. {per_repo * len(TARGET_REPOS)} Commits gesamt (nach Deduplizierung weniger)")
     print()
 
-    # ── Schritt 1: Rufe rohe Commits ab ───────────────────────────────────────────
+    # Schritt 1: Rufe rohe Commits ab 
     all_commits: list[dict] = []
     seen_normalized: set[str] = set()
 
     for repo_name in TARGET_REPOS:
-        raw = fetch_repo_commits(repo_name, g, per_repo * 2)  # Rufe Extra-Commits für deduplizierung
+        raw = fetch_repo_commits(repo_name, g, per_repo)
         for c in raw:
             norm = normalize_message(c["message"])
             if norm not in seen_normalized:
@@ -188,7 +190,7 @@ def main():
 
     print(f"\nTotal unique commits after dedup: {len(all_commits)}")
 
-# ── Schritt 2: Klassifiziere in Batches ───────────────────────────────────────
+    # Schritt 2: Klassifiziere in Batches 
     labeled: list[dict] = []
     failed = 0
     messages = [c["message"] for c in all_commits]
@@ -214,10 +216,10 @@ def main():
         if (i // BATCH_SIZE) % 10 == 0:
             print(f"  Progress: {len(labeled)} labeled, {failed} failed (batch {i // BATCH_SIZE + 1})")
 
-        # Kurze Pause zur einhaltung der API-Limits
+        # Kurze Pause zur Einhaltung der API-Limits
         time.sleep(0.1)
 
-# ── Schritt 3: Speichere und berichte ──────────────────────────────────────────
+    # Schritt 3: Speichern
     save_jsonl(labeled, args.output)
     print(f"\nSaved {len(labeled)} labeled commits to {args.output}")
     print(f"Failed/skipped: {failed}")
