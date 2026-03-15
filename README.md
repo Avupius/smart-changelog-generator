@@ -249,9 +249,9 @@ smart-changelog-generator/
 ├── data/
 │   ├── labeled/
 │   │   └── commits_labeled.jsonl  # Trainingsdaten (Stand: 15.03.2026, 20:15 Uhr)
-│   └── confusion_matrix.png       # Aktuelle Konfusionsmatrix
 ├── models/                  # Trainierte Modell-Artefakte (gitignored)
 ├── requirements.txt
+├── confusion_matrix.png       # Konfusionsmatrix (Stand: 15.03.2026, 20:15 Uhr)
 └── .env.example
 ```
 
