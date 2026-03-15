@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 from github import Github, GithubException, Auth
 from openai import OpenAI
 from tqdm import tqdm
-from ml.utils import CATEGORIES, normalize_label, normalize_message, save_jsonl
 from collections import Counter
+from ml.utils import CATEGORIES, normalize_label, normalize_message, save_jsonl
 
 """
 Phase 1 der NLP-Pipeline.
@@ -115,8 +115,13 @@ def fetch_repo_commits(repo_name: str, g: Github, limit: int) -> list[dict]:
                 break
             msg = c.commit.message or ""
             subject = msg.splitlines()[0].strip()
+
+            # Leere, Merge- und zu kurze Commits überspringen
             if not subject or _is_merge_commit(subject):
                 continue
+            if len(subject.split()) < 2:
+                continue
+
             commits.append({
                 "sha": c.sha[:7],
                 "message": subject,

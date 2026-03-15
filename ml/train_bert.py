@@ -82,7 +82,7 @@ def compare_classifiers(X_train, y_train, X_val, y_val, le, use_grid: bool) -> o
     print("\n  Trainiere LogisticRegression...")
     if use_grid:
         grid = GridSearchCV(
-            LogisticRegression(max_iter=2000, random_state=42, class_weight="balanced"),
+            LogisticRegression(max_iter=3000, random_state=42, class_weight="balanced"),
             param_grid={"C": [0.1, 0.5, 1.0, 5.0, 10.0]},
             cv=3, scoring="f1_macro", n_jobs=-1, verbose=0,
         )
@@ -90,7 +90,7 @@ def compare_classifiers(X_train, y_train, X_val, y_val, le, use_grid: bool) -> o
         clf_lr = grid.best_estimator_
         print(f"    Bestes C={grid.best_params_['C']}  (CV F1={grid.best_score_:.4f})")
     else:
-        clf_lr = LogisticRegression(C=5.0, max_iter=2000, random_state=42, class_weight="balanced")
+        clf_lr = LogisticRegression(C=5.0, max_iter=3000, random_state=42, class_weight="balanced")
         clf_lr.fit(X_train, y_train)
 
     preds = le.inverse_transform(clf_lr.predict(X_val))

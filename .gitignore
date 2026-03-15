@@ -19,7 +19,6 @@ models/bert_classifier/
 models/*.pkl
 
 # Training data (may contain private commit history)
-data/labeled/
 data/splits/
 data/raw/
 data/evaluation_results.json

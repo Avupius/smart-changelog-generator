@@ -1,6 +1,6 @@
 # Smart Changelog Generator
 
-Eine NLP-Pipeline, die automatisch strukturierte, kategorisierte und zusammengefasste Changelogs aus GitHub-Commits generiert, für beliebige Repositories, ohne manuelle Konfiguration.
+Eine NLP-Pipeline, die automatisch strukturierte, kategorisierte und zusammengefasste Changelogs aus GitHub-Commits generiert — für beliebige Repositories, ohne manuelle Konfiguration.
 
 > Bachelormodul-Projekt für **Natural Language Processing** — WiSe 25/26
 
@@ -66,7 +66,7 @@ Der `GITHUB_TOKEN` ist optional — ohne Token ist die GitHub API auf 60 Anfrage
 ## Webanwendung starten
 
 ```bash
-uvicorn app.main:app
+uvicorn app.main:app --reload
 ```
 
 Anschließend im Browser [http://localhost:8000](http://localhost:8000) öffnen.
@@ -87,11 +87,22 @@ Der generierte Changelog wird als gerendertes Markdown im Browser angezeigt und 
 
 ## NLP-Trainingspipeline
 
-Die Trainingspipeline besteht aus drei Schritten, die der Reihe nach ausgeführt werden müssen.
+> **Hinweis:** Die Trainingsdaten wurden bereits am 15.03.2026 um 20:15 Uhr gepullt und gelabelt und liegen unter `data/labeled/commits_labeled.jsonl`. Für den normalen Betrieb reicht es, **nur Schritt 2 (Training)** auszuführen. Schritt 1 (Datenbeschaffung) muss nur wiederholt werden, wenn neue oder aktuellere Trainingsdaten benötigt werden.
 
-### Schritt 1 — Trainingsdaten labeln
+> **Aktuelle Modellperformance** (Stand: 15.03.2026, Trainingsdatensatz mit 14.122 Commits aus 30 Repositories):
+> - Accuracy: 80,7 %
+> - F1-macro: 0,801
+> - Bester Klassifikator: LinearSVC
 
-Ruft Commits aus den konfigurierten GitHub-Repositories ab und labelt jeden Commit mit GPT-4o-mini:
+![Konfusionsmatrix](confusion_matrix.png)
+
+Die Trainingspipeline besteht aus drei Schritten.
+
+---
+
+### Schritt 1 — Trainingsdaten labeln *(nur bei Bedarf)*
+
+Ruft Commits aus den konfigurierten GitHub-Repositories ab und labelt jeden Commit mit GPT-4o-mini. Dieser Schritt ist nur notwendig, wenn die bestehenden Trainingsdaten erneuert oder erweitert werden sollen.
 
 ```bash
 python -m ml.label_commits
@@ -110,11 +121,9 @@ Beispiel:
 python -m ml.label_commits --per-repo 300
 ```
 
-Ausgabe: `data/labeled/commits_labeled.jsonl`
-
 #### Repositories für das Training anpassen
 
-Die Liste der Repositories, aus denen Trainingsdaten gesammelt werden, befindet sich in `ml/label_commits.py` in der Variable `TARGET_REPOS`:
+Die Liste der Repositories befindet sich in `ml/label_commits.py` in der Variable `TARGET_REPOS`:
 
 ```python
 TARGET_REPOS = [
@@ -124,13 +133,13 @@ TARGET_REPOS = [
 ]
 ```
 
-Jeder Eintrag ist ein GitHub-Repository im Format `owner/repo`. Es können beliebige öffentliche Repositories oder private Repositories mit einem gültigen GitHub-Token hinzugefügt werden.
+Jeder Eintrag ist ein GitHub-Repository im Format `owner/repo`.
 
 ---
 
 ### Schritt 2 — Klassifikator trainieren
 
-Trainiert einen Sentence-BERT-Klassifikator (`paraphrase-multilingual-mpnet-base-v2`) auf den gelabelten Daten und vergleicht drei Klassifikatoren (Logistic Regression, LinearSVC, SGDClassifier):
+Trainiert einen Sentence-BERT-Klassifikator auf den Trainingsdaten und vergleicht drei Klassifikatoren (Logistic Regression, LinearSVC, SGDClassifier):
 
 ```bash
 python -m ml.train_bert
@@ -219,7 +228,10 @@ smart-changelog-generator/
 │   ├── evaluate.py          # Evaluationsmetriken
 │   ├── features.py          # Feature-Extraktion
 │   └── utils.py             # Gemeinsame Hilfsfunktionen
-├── data/                    # Trainingsdaten + Splits (gitignored)
+├── data/
+│   ├── labeled/
+│   │   └── commits_labeled.jsonl  # Trainingsdaten (Stand: 15.03.2026, 20:15 Uhr)
+│   └── confusion_matrix.png       # Aktuelle Konfusionsmatrix
 ├── models/                  # Trainierte Modell-Artefakte (gitignored)
 ├── requirements.txt
 └── .env.example
@@ -229,4 +241,4 @@ smart-changelog-generator/
 
 ## Autoren
 
-Cezary Kutko · Leon Gleitze
+Leon Gleitze · Cezary Kutko
